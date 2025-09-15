@@ -1,33 +1,33 @@
-# Finance.
+# Bio.
 
-> **We put Bloomberg terminal behind a chat interface and open-sourced it** - Access institutional-grade financial data, run complex code analyses, and create stunning visualizations through natural language. The backend? 1 search API.
+> **We put a biomedical research assistant behind a chat interface and open-sourced it** - Access clinical trials data, FDA drug labels, PubMed literature, and pharmaceutical intelligence through natural language. The backend? 1 search API.
 
-🚀 **[Try the live demo at finance.valyu.network](https://finance.valyu.network)**
+🚀 **[Try the live demo at bio.valyu.network](https://bio.valyu.network)**
 
-![Finance by Valyu](public/valyu.png)
+![Bio by Valyu](public/valyu.png)
 
-## Why Finance?
+## Why Bio?
 
-Traditional financial research is fragmented across dozens of expensive platforms. Finance changes everything by providing:
+Traditional biomedical research is fragmented across dozens of databases and platforms. Bio changes everything by providing:
 
-- **📊 Institutional-Grade Data** - SEC filings, real-time market data, financial statements, insider trading, and more
-- **🔍 One Unified Search** - Powered by Valyu's comprehensive financial data API
-- **🐍 Advanced Analytics** - Execute Python code in secure Daytona sandboxes for ML models, backtesting, and custom analysis
-- **📈 Interactive Visualizations** - Beautiful charts and dashboards that bring data to life
-- **🌐 Real-Time Intelligence** - Web search integration for breaking news and market updates
+- **🧬 Clinical-Grade Data** - ClinicalTrials.gov data, FDA drug labels, PubMed literature, and pharmaceutical company intelligence
+- **🔍 One Unified Search** - Powered by Valyu's comprehensive biomedical data API
+- **🐍 Advanced Analytics** - Execute Python code in secure Daytona sandboxes for data analysis, statistical modeling, and visualization
+- **📊 Interactive Visualizations** - Beautiful charts for clinical data, drug efficacy comparisons, and research trends
+- **🌐 Real-Time Intelligence** - Web search integration for breaking medical news and research updates
 - **🏠 Local AI Models** - Run with Ollama for unlimited, private queries using your own hardware
 - **🎯 Natural Language** - Just ask questions like you would to a colleague
 
 ## Key Features
 
-### 🔥 Powerful Financial Tools
+### 🔥 Powerful Biomedical Tools
 
-- **SEC Filings Analysis** - Deep dive into 10-Ks, 10-Qs, 8-Ks, and more
-- **Market Data** - Real-time and historical stock prices, volumes, and technical indicators  
-- **Financial Statements** - Income statements, balance sheets, cash flows with automatic calculations
-- **Insider Trading** - Track institutional and insider transactions
-- **Academic Research** - Access to arXiv papers and financial research
-- **News & Sentiment** - Real-time news analysis with market impact assessment
+- **Clinical Trials Search** - Search and analyze trials from ClinicalTrials.gov with detailed phase, enrollment, and outcome data
+- **Drug Information** - FDA drug labels with contraindications, side effects, and interaction warnings from DailyMed
+- **Biomedical Literature** - Access PubMed, ArXiv, and academic journals for peer-reviewed research
+- **Pharma Intelligence** - Analyze pharmaceutical companies through SEC filings, earnings, and market data
+- **Academic Research** - Access to Wiley finance/business/accounting corpus for healthcare economics research
+- **Comprehensive Search** - Cross-reference clinical trials, drug labels, and literature in one query
 
 ### 🛠️ Advanced Tool Calling
 
