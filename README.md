@@ -31,7 +31,7 @@ Traditional biomedical research is fragmented across dozens of databases and pla
 
 ### 🛠️ Advanced Tool Calling
 
-- **Python Code Execution** - Run complex financial models, ML algorithms, and custom analyses
+- **Python Code Execution** - Run biostatistical analyses, ML models for drug discovery, and custom data processing
 - **Interactive Charts** - Create publication-ready visualizations
 - **Multi-Source Research** - Automatically aggregates data from multiple sources
 - **Export & Share** - Download results, share analyses, and collaborate
@@ -56,8 +56,8 @@ Traditional biomedical research is fragmented across dozens of databases and pla
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yorkeccak/finance.git
-   cd finance
+   git clone https://github.com/yorkeccak/bio.git
+   cd bio
    ```
 
 2. **Install dependencies**
@@ -139,31 +139,31 @@ For unlimited, private queries using your own hardware:
    Click the "Local Models" indicator in the top-right corner of the app to select your model.
 
 **Model Recommendations:**
-- **Qwen2.5:7B+** - Excellent for tool calling and financial analysis
+- **Qwen2.5:7B+** - Excellent for tool calling and biomedical analysis
 - **Llama 3.1:7B+** - Good general performance with tools
 - **Avoid smaller models** - Many struggle with complex function calling
 
 ## 💡 Example Queries
 
-Try these powerful queries to see what Finance can do:
+Try these powerful queries to see what Bio can do:
 
-- "Build a Monte Carlo simulation to predict Tesla's stock price in 6 months"
-- "Analyze GameStop's latest 10-K filing and extract key financial metrics"
-- "Research how Trump's latest statements affect Elon Musk's companies"
-- "Create an interactive dashboard comparing the 'Magnificent 7' stocks"
-- "Do an in-depth report on COVID-19's effect on Pfizer with insider trading data"
-- "Analyze PepsiCo's recent SEC filings and calculate key financial ratios"
+- "Search for Phase 3 clinical trials for melanoma immunotherapy"
+- "What are the contraindications and drug interactions for warfarin?"
+- "Analyze the latest CRISPR gene editing research from PubMed"
+- "Compare CAR-T therapy efficacy rates across different cancer types"
+- "Research Moderna's drug pipeline and recent clinical trial results"
+- "Find biomarkers for early Alzheimer's disease detection from recent literature"
 
 **With Local Models (Ollama):**
 - Run unlimited queries without API costs
-- Keep all your financial analysis completely private
-- Perfect for sensitive research and proprietary strategies
+- Keep all your biomedical research completely private
+- Perfect for sensitive patient data and proprietary research
 
 ## 🏗️ Architecture
 
 - **Frontend**: Next.js 15 with App Router, Tailwind CSS, shadcn/ui
-- **AI**: OpenAI GPT-5 with function calling + Ollama for local models
-- **Data**: Valyu API for comprehensive financial data
+- **AI**: OpenAI GPT-4 with function calling + Ollama for local models
+- **Data**: Valyu API for comprehensive biomedical data (ClinicalTrials.gov, DailyMed, PubMed)
 - **Code Execution**: Daytona sandboxes for secure Python execution
 - **Visualizations**: Recharts for interactive charts
 - **Real-time**: Streaming responses with Vercel AI SDK
@@ -173,8 +173,9 @@ Try these powerful queries to see what Finance can do:
 
 - Secure API key management
 - Sandboxed code execution via Daytona
-- No storage of sensitive financial data
+- No storage of sensitive patient or research data
 - HTTPS encryption for all API calls
+- HIPAA-compliant data handling practices
 
 ## 📝 License
 
@@ -186,7 +187,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## 🙏 Acknowledgments
 
-- Built with [Valyu](https://platform.valyu.network) - The unified financial data API
+- Built with [Valyu](https://platform.valyu.network) - The unified biomedical data API
 - Powered by [Daytona](https://daytona.io) - Secure code execution
 - UI components from [shadcn/ui](https://ui.shadcn.com)
 
@@ -199,5 +200,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 <p align="center">
   <a href="https://twitter.com/ValyuNetwork">Twitter</a> •
   <a href="https://www.linkedin.com/company/valyu-network">LinkedIn</a> •
-  <a href="https://github.com/yorkeccak/finance">GitHub</a>
+  <a href="https://github.com/yorkeccak/bio">GitHub</a>
 </p>
