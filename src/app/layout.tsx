@@ -27,12 +27,12 @@ export const metadata: Metadata = {
     template: "%s | Bio by Valyu",
   },
   description:
-    "AI-powered financial analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
+    "AI-powered bio/healthcare analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
   applicationName: "Bio by Valyu",
   openGraph: {
     title: "Bio by Valyu",
     description:
-      "AI-powered financial analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
+      "AI-powered bio/healthcare analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
     url: "/",
     siteName: "Bio by Valyu",
     images: [
