@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { useOllama } from "@/lib/ollama-context";
 import { useAuthStore } from "@/lib/stores/use-auth-store";
+import { AuthModal } from "@/components/auth/auth-modal";
 import { createClient } from "@/utils/supabase/client";
 import { track } from "@vercel/analytics";
 import { OllamaStatusIndicator } from "@/components/ollama-status-indicator";
@@ -1567,6 +1568,7 @@ export function ChatInterface({
     >
   >({});
   const [copiedMessageId, setCopiedMessageId] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const libraryContextRef = useRef<SavedItem[]>([]);
   const lastSentContextRef = useRef<SavedItem[]>([]);
   const messageIdsRef = useRef<string[]>([]);
@@ -3455,37 +3457,38 @@ export function ChatInterface({
     (status === "ready" || status === "error") && messages.length > 0;
 
   return (
-    <SavedResultsProvider>
-      <SeenResultsProvider sessionKey={sessionIdRef.current}>
-        <div className="w-full max-w-3xl mx-auto relative min-h-0">
-          {/* Removed duplicate New Chat button - handled by parent page */}
-          {process.env.NEXT_PUBLIC_APP_MODE === "development" && (
-            <div className="fixed top-4 left-4 z-50">
-              <OllamaStatusIndicator hasMessages={messages.length > 0} />
-            </div>
-          )}
+    <>
+      <SavedResultsProvider>
+        <SeenResultsProvider sessionKey={sessionIdRef.current}>
+          <div className="w-full max-w-3xl mx-auto relative min-h-0">
+            {/* Removed duplicate New Chat button - handled by parent page */}
+            {process.env.NEXT_PUBLIC_APP_MODE === "development" && (
+              <div className="fixed top-4 left-4 z-50">
+                <OllamaStatusIndicator hasMessages={messages.length > 0} />
+              </div>
+            )}
 
-          {/* Messages */}
-          <div
-            ref={messagesContainerRef}
-            className={`space-y-4 sm:space-y-8 min-h-[300px] overflow-y-auto overflow-x-hidden ${
-              messages.length > 0 ? "pt-20 sm:pt-24" : "pt-2 sm:pt-4"
-            } ${isFormAtBottom ? "pb-32 sm:pb-36" : "pb-4 sm:pb-8"}`}
-          >
-            {messages.length === 0 && (
-              <motion.div
-                className="pt-8 1"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ duration: 0.5 }}
-              >
-                <div className="text-center mb-6 sm:mb-8">
-                  {/* Capabilities */}
-                  <div className="max-w-4xl mx-auto">
-                    {/* Fast Mode Toggle */}
-                    <motion.button
-                      onClick={() => setEffectiveFastMode(!effectiveFastMode)}
-                      className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium mb-2 transition-colors
+            {/* Messages */}
+            <div
+              ref={messagesContainerRef}
+              className={`space-y-4 sm:space-y-8 min-h-[300px] overflow-y-auto overflow-x-hidden ${
+                messages.length > 0 ? "pt-20 sm:pt-24" : "pt-2 sm:pt-4"
+              } ${isFormAtBottom ? "pb-32 sm:pb-36" : "pb-4 sm:pb-8"}`}
+            >
+              {messages.length === 0 && (
+                <motion.div
+                  className="pt-8 1"
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ duration: 0.5 }}
+                >
+                  <div className="text-center mb-6 sm:mb-8">
+                    {/* Capabilities */}
+                    <div className="max-w-4xl mx-auto">
+                      {/* Fast Mode Toggle */}
+                      <motion.button
+                        onClick={() => setEffectiveFastMode(!effectiveFastMode)}
+                        className={`inline-flex items-center gap-1 px-2 py-1 rounded-full border text-xs font-medium mb-2 transition-colors
                     ${
                       effectiveFastMode
                         ? "bg-purple-100 dark:bg-purple-900/40 border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300"
@@ -3493,176 +3496,2178 @@ export function ChatInterface({
                     }
                     hover:border-gray-300 dark:hover:border-gray-500 hover:bg-gray-50 dark:hover:bg-gray-800/60
                   `}
-                      initial={{ opacity: 0, y: 10 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.08, duration: 0.4 }}
-                      whileTap={{ scale: 0.97 }}
-                      style={{ position: "absolute", left: 0, marginLeft: 0 }}
-                      aria-pressed={effectiveFastMode}
-                      type="button"
-                    >
-                      <span
-                        className={`w-2 h-2 rounded-full mr-1 ${
-                          effectiveFastMode
-                            ? "bg-purple-500"
-                            : "bg-green-400 dark:bg-green-600"
-                        }`}
-                      />
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{ delay: 0.08, duration: 0.4 }}
+                        whileTap={{ scale: 0.97 }}
+                        style={{ position: "absolute", left: 0, marginLeft: 0 }}
+                        aria-pressed={effectiveFastMode}
+                        type="button"
+                      >
+                        <span
+                          className={`w-2 h-2 rounded-full mr-1 ${
+                            effectiveFastMode
+                              ? "bg-purple-500"
+                              : "bg-green-400 dark:bg-green-600"
+                          }`}
+                        />
 
-                      <span>
-                        {effectiveFastMode ? "Fast Mode" : "Research Mode"}
-                      </span>
-                    </motion.button>
-                    <motion.div
-                      className="text-center mb-4 sm:mb-6"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.1, duration: 0.5 }}
-                    >
-                      <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                        Try these capabilities
-                      </h3>
-                    </motion.div>
-
-                    <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 px-2 sm:px-0">
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Find all active Phase 3 clinical trials for metastatic melanoma. Focus on immunotherapy trials, show enrollment numbers, primary endpoints, and compare efficacy data. Create a visualization comparing response rates across different checkpoint inhibitors."
-                          )
-                        }
-                        className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                        <span>
+                          {effectiveFastMode ? "Fast Mode" : "Research Mode"}
+                        </span>
+                      </motion.button>
+                      <motion.div
+                        className="text-center mb-4 sm:mb-6"
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.3, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
+                        transition={{ delay: 0.1, duration: 0.5 }}
                       >
-                        <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
-                          🧬 Clinical Trials
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                          Active trials & efficacy data
-                        </div>
-                      </motion.button>
+                        <h3 className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Try these capabilities
+                        </h3>
+                      </motion.div>
 
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Compare warfarin vs. apixaban for atrial fibrillation. Look up FDA labels for contraindications, drug interactions, and bleeding risks. Search recent literature on real-world effectiveness data and create a comprehensive safety comparison table."
-                          )
-                        }
-                        className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.4, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
-                          💊 Drug Labels
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                          FDA labels & safety comparisons
-                        </div>
-                      </motion.button>
+                      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 px-2 sm:px-0">
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Find all active Phase 3 clinical trials for metastatic melanoma. Focus on immunotherapy trials, show enrollment numbers, primary endpoints, and compare efficacy data. Create a visualization comparing response rates across different checkpoint inhibitors."
+                            )
+                          }
+                          className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.3, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            🧬 Clinical Trials
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                            Active trials & efficacy data
+                          </div>
+                        </motion.button>
 
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Search PubMed for the latest CAR-T cell therapy advances in treating B-cell lymphomas. Focus on papers from 2023-2024, summarize response rates, toxicity profiles, and compare different CAR-T products. Include real-world evidence studies."
-                          )
-                        }
-                        className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.5, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
-                          📚 PubMed Search
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                          Biomedical literature & research papers
-                        </div>
-                      </motion.button>
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Compare warfarin vs. apixaban for atrial fibrillation. Look up FDA labels for contraindications, drug interactions, and bleeding risks. Search recent literature on real-world effectiveness data and create a comprehensive safety comparison table."
+                            )
+                          }
+                          className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.4, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            💊 Drug Labels
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                            FDA labels & safety comparisons
+                          </div>
+                        </motion.button>
 
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Analyze Moderna's competitive position in the mRNA therapeutics market. Review their latest SEC filings, drug pipeline, ongoing clinical trials, and stock performance. Compare with BioNTech and CureVac. Include patent landscape analysis."
-                          )
-                        }
-                        className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.6, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
-                          💼 Pharma Analysis
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                          Company pipelines & competitive intelligence
-                        </div>
-                      </motion.button>
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Search PubMed for the latest CAR-T cell therapy advances in treating B-cell lymphomas. Focus on papers from 2023-2024, summarize response rates, toxicity profiles, and compare different CAR-T products. Include real-world evidence studies."
+                            )
+                          }
+                          className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.5, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            📚 PubMed Search
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                            Biomedical literature & research papers
+                          </div>
+                        </motion.button>
 
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Use Python to perform a survival analysis on breast cancer clinical trial data. Calculate progression-free survival rates, create Kaplan-Meier curves comparing different treatment arms, and identify statistically significant predictors of treatment response."
-                          )
-                        }
-                        className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.7, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
-                          🐍 Biostatistics
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
-                          Clinical data analysis & survival curves
-                        </div>
-                      </motion.button>
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Analyze Moderna's competitive position in the mRNA therapeutics market. Review their latest SEC filings, drug pipeline, ongoing clinical trials, and stock performance. Compare with BioNTech and CureVac. Include patent landscape analysis."
+                            )
+                          }
+                          className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.6, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            💼 Pharma Analysis
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                            Company pipelines & competitive intelligence
+                          </div>
+                        </motion.button>
 
-                      <motion.button
-                        onClick={() =>
-                          handlePromptClick(
-                            "Comprehensive analysis of the COVID-19 vaccine race: Compare Pfizer, Moderna, and AstraZeneca's vaccine development timelines, clinical trial results, efficacy data, safety profiles, and market impact. Include SEC filings, stock performance during vaccine announcements, and revenue from vaccine sales. Create visualizations comparing their Phase 3 trial results."
-                          )
-                        }
-                        className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-2.5 sm:p-4 rounded-xl border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/30 dark:hover:to-purple-900/30 text-left group col-span-1 sm:col-span-2 lg:col-span-1"
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{ delay: 0.8, duration: 0.5 }}
-                        whileTap={{ scale: 0.98 }}
-                      >
-                        <div className="text-blue-700 dark:text-blue-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-blue-900 dark:group-hover:text-blue-100">
-                          🧬 Vaccine Analysis
-                        </div>
-                        <div className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400">
-                          Multi-company trials + Efficacy data + Market impact
-                        </div>
-                      </motion.button>
-                    </div>
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Use Python to perform a survival analysis on breast cancer clinical trial data. Calculate progression-free survival rates, create Kaplan-Meier curves comparing different treatment arms, and identify statistically significant predictors of treatment response."
+                            )
+                          }
+                          className="bg-gray-50 dark:bg-gray-800/50 p-2.5 sm:p-4 rounded-xl border border-gray-100 dark:border-gray-700 hover:border-gray-200 dark:hover:border-gray-600 transition-colors hover:bg-gray-100 dark:hover:bg-gray-800 text-left group"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.7, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-gray-700 dark:text-gray-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-gray-900 dark:group-hover:text-gray-100">
+                            🐍 Biostatistics
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-gray-500 dark:text-gray-400">
+                            Clinical data analysis & survival curves
+                          </div>
+                        </motion.button>
 
-                    <div className="mt-4 sm:mt-8">
-                      <DataSourceLogos />
+                        <motion.button
+                          onClick={() =>
+                            handlePromptClick(
+                              "Comprehensive analysis of the COVID-19 vaccine race: Compare Pfizer, Moderna, and AstraZeneca's vaccine development timelines, clinical trial results, efficacy data, safety profiles, and market impact. Include SEC filings, stock performance during vaccine announcements, and revenue from vaccine sales. Create visualizations comparing their Phase 3 trial results."
+                            )
+                          }
+                          className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/20 dark:to-purple-900/20 p-2.5 sm:p-4 rounded-xl border border-blue-200 dark:border-blue-700 hover:border-blue-300 dark:hover:border-blue-600 transition-colors hover:from-blue-100 hover:to-purple-100 dark:hover:from-blue-900/30 dark:hover:to-purple-900/30 text-left group col-span-1 sm:col-span-2 lg:col-span-1"
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: 0.8, duration: 0.5 }}
+                          whileTap={{ scale: 0.98 }}
+                        >
+                          <div className="text-blue-700 dark:text-blue-300 mb-1.5 sm:mb-2 text-xs sm:text-sm font-medium group-hover:text-blue-900 dark:group-hover:text-blue-100">
+                            🧬 Vaccine Analysis
+                          </div>
+                          <div className="text-[10px] sm:text-xs text-blue-600 dark:text-blue-400">
+                            Multi-company trials + Efficacy data + Market impact
+                          </div>
+                        </motion.button>
+                      </div>
+
+                      <div className="mt-4 sm:mt-8">
+                        <DataSourceLogos />
+                      </div>
                     </div>
                   </div>
+                </motion.div>
+              )}
+
+              {/* Input Form when not at bottom (desktop only) */}
+              {!isFormAtBottom && messages.length === 0 && !isMobile && (
+                <motion.div
+                  className="mt-8 mb-16"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.9, duration: 0.5 }}
+                >
+                  <div className="w-full max-w-3xl mx-auto px-4 sm:px-6">
+                    <form
+                      onSubmit={handleSubmit}
+                      className="max-w-3xl mx-auto space-y-2"
+                    >
+                      {showFileDropzone && (
+                        <div className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="font-medium text-sm text-gray-800 dark:text-gray-200">
+                                Attach files &amp; media
+                              </p>
+                              <p className="text-xs text-gray-500 dark:text-gray-400">
+                                Drop files below or click to browse. We&apos;ll
+                                add them to the next answer.
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={closeFileDropzone}
+                              className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100"
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                          <div className="mt-3">
+                            <Dropzone
+                              maxFiles={5}
+                              accept={{
+                                "application/pdf": [".pdf"],
+                                "image/*": [
+                                  ".png",
+                                  ".jpg",
+                                  ".jpeg",
+                                  ".gif",
+                                  ".bmp",
+                                  ".webp",
+                                ],
+                                "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                                  [".docx"],
+                                "application/json": [".json"],
+                              }}
+                              onDrop={handleFileDrop}
+                              onError={(error) => console.error(error)}
+                              src={dropzoneFiles}
+                              className="w-full border-2 border-dashed border-gray-300 bg-transparent px-4 py-6 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-600"
+                            >
+                              <DropzoneEmptyState />
+                              <DropzoneContent />
+                            </Dropzone>
+                          </div>
+                        </div>
+                      )}
+                      {Object.keys(uploadingFiles).length > 0 && (
+                        <div className="space-y-2">
+                          {Object.entries(uploadingFiles).map(
+                            ([fileId, fileUpload]) => (
+                              <div
+                                key={fileId}
+                                className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-blue-800 shadow-sm dark:border-blue-800/70 dark:bg-blue-900/20 dark:text-blue-200"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2">
+                                    <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400"></div>
+                                    <span className="text-xs font-medium">
+                                      Uploading and processing:{" "}
+                                      {fileUpload.fileName}
+                                    </span>
+                                  </div>
+                                  <button
+                                    onClick={() => cancelFileUpload(fileId)}
+                                    className="flex h-5 w-5 items-center justify-center rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-800/30"
+                                    title="Cancel upload"
+                                  >
+                                    <svg
+                                      className="h-3 w-3"
+                                      fill="none"
+                                      stroke="currentColor"
+                                      viewBox="0 0 24 24"
+                                    >
+                                      <path
+                                        strokeLinecap="round"
+                                        strokeLinejoin="round"
+                                        strokeWidth={2}
+                                        d="M6 18L18 6M6 6l12 12"
+                                      />
+                                    </svg>
+                                  </button>
+                                </div>
+                              </div>
+                            )
+                          )}
+                        </div>
+                      )}
+                      {libraryContextBanner}
+                      <div className="relative flex items-end">
+                        <DropdownMenu
+                          open={inputMenuOpen}
+                          onOpenChange={setInputMenuOpen}
+                        >
+                          <DropdownMenuTrigger asChild>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              className="absolute left-1.5 sm:left-2 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300"
+                              tabIndex={-1}
+                            >
+                              <Plus className="h-4 w-4" />
+                            </Button>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent
+                            align="start"
+                            sideOffset={6}
+                            className="w-40 text-xs"
+                          >
+                            <DropdownMenuItem onSelect={handleFileMenuSelect}>
+                              <span className="inline-flex items-center">
+                                <FileText className="h-4 w-4 mr-1" />
+                                Files &amp; media
+                              </span>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              onSelect={() => {
+                                if (user) {
+                                  openLibraryCard();
+                                } else {
+                                  setShowAuthModal(true);
+                                }
+                              }}
+                            >
+                              <span className="inline-flex items-center">
+                                <Library className="h-4 w-4 mr-1" />
+                                Library
+                              </span>
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                        <Textarea
+                          value={input}
+                          onChange={handleInputChange}
+                          placeholder="Ask a question..."
+                          className="w-full resize-none border-gray-200 dark:border-gray-700 rounded-2xl pl-10 sm:pl-12 pr-14 sm:pr-16 py-2.5 sm:py-3 min-h-[38px] sm:min-h-[40px] max-h-28 sm:max-h-32 focus:border-gray-300 dark:focus:border-gray-600 focus:ring-0 bg-gray-50 dark:bg-gray-900/50 overflow-y-auto text-sm sm:text-base"
+                          disabled={status === "error" || isLoading}
+                          rows={1}
+                          style={{ lineHeight: "1.5" }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" && !e.shiftKey) {
+                              e.preventDefault();
+                              handleSubmit(e);
+                            }
+                          }}
+                        />
+                        <Button
+                          type={canStop ? "button" : "submit"}
+                          onClick={canStop ? stop : undefined}
+                          disabled={
+                            !canStop &&
+                            (isLoading || !input.trim() || status === "error")
+                          }
+                          className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 rounded-xl h-7 w-7 sm:h-8 sm:w-8 p-0 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 dark:text-gray-900"
+                        >
+                          {canStop ? (
+                            <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          ) : isLoading ? (
+                            <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                          ) : (
+                            <svg
+                              className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M5 12l14 0m-7-7l7 7-7 7"
+                              />
+                            </svg>
+                          )}
+                        </Button>
+                      </div>
+                    </form>
+
+                    {/* Powered by Valyu */}
+                    <motion.div
+                      className="flex items-center justify-center mt-4"
+                      initial={{ opacity: 0 }}
+                      animate={{ opacity: 1 }}
+                      transition={{ delay: 1.1, duration: 0.5 }}
+                    >
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        Powered by
+                      </span>
+                      <a
+                        href="https://platform.valyu.network"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-flex items-center hover:scale-105 transition-transform"
+                      >
+                        <Image
+                          src="/valyu.svg"
+                          alt="Valyu"
+                          width={60}
+                          height={60}
+                          className="h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer dark:invert"
+                        />
+                      </a>
+                    </motion.div>
+                  </div>
+                </motion.div>
+              )}
+
+              <AnimatePresence initial={!virtualizationEnabled}>
+                {(virtualizationEnabled
+                  ? deferredMessages
+                      .slice(visibleRange.start, visibleRange.end)
+                      .map((message, i) => ({
+                        item: message,
+                        realIndex: visibleRange.start + i,
+                      }))
+                  : deferredMessages.map((m, i) => ({ item: m, realIndex: i }))
+                ).map(({ item: message }) => {
+                  const contextResources = contextResourceMap[message.id] || [];
+
+                  return (
+                    <motion.div
+                      key={message.id}
+                      data-message-id={message.id}
+                      className="group"
+                      initial={
+                        virtualizationEnabled
+                          ? undefined
+                          : { opacity: 0, y: 20 }
+                      }
+                      animate={
+                        virtualizationEnabled ? undefined : { opacity: 1, y: 0 }
+                      }
+                      exit={
+                        virtualizationEnabled
+                          ? undefined
+                          : { opacity: 0, y: -20 }
+                      }
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      {message.role === "user" ? (
+                        <>
+                          <div className="flex justify-end mb-3 px-3 sm:px-0">
+                            <div className="max-w-[85%] sm:max-w-[80%] bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 sm:px-4 py-3 sm:py-3 relative group shadow-sm">
+                              {/* User Message Actions */}
+                              <div className="absolute -left-12 sm:-left-14 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 sm:gap-1">
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => handleEditMessage(message.id)}
+                                  className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700"
+                                >
+                                  <Edit3 className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={async () => {
+                                    // Extract text content from the message
+                                    let textContent = "";
+                                    if (
+                                      message.parts &&
+                                      Array.isArray(message.parts)
+                                    ) {
+                                      const textPart = message.parts.find(
+                                        (p) => p.type === "text"
+                                      );
+                                      if (textPart && textPart.text) {
+                                        textContent = textPart.text;
+                                      }
+                                    } else if (
+                                      typeof message.parts === "string"
+                                    ) {
+                                      textContent = message.parts;
+                                    }
+
+                                    if (textContent) {
+                                      await copyToClipboard(textContent);
+                                      // Show "copied" notification
+                                      setCopiedMessageId(message.id);
+                                      // Hide notification after 2 seconds
+                                      setTimeout(() => {
+                                        setCopiedMessageId(null);
+                                      }, 2000);
+                                    }
+                                  }}
+                                  className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 relative"
+                                  title={
+                                    copiedMessageId === message.id
+                                      ? "Copied!"
+                                      : "Copy message"
+                                  }
+                                >
+                                  {copiedMessageId === message.id ? (
+                                    <Check className="h-3 w-3 text-green-600" />
+                                  ) : (
+                                    <Copy className="h-3 w-3" />
+                                  )}
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() =>
+                                    handleDeleteMessage(message.id)
+                                  }
+                                  className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 text-red-500 hover:text-red-700"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </div>
+
+                              {editingMessageId === message.id ? (
+                                <div className="space-y-3">
+                                  <div className="relative">
+                                    <DropdownMenu>
+                                      <DropdownMenuTrigger asChild>
+                                        <Button
+                                          type="button"
+                                          variant="ghost"
+                                          size="sm"
+                                          className="absolute left-2 top-2.5 h-8 w-8 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300 shadow-none"
+                                          tabIndex={-1}
+                                        >
+                                          <Plus className="h-4 w-4" />
+                                        </Button>
+                                      </DropdownMenuTrigger>
+                                      <DropdownMenuContent
+                                        align="start"
+                                        sideOffset={6}
+                                        className="w-32 text-xs"
+                                      >
+                                        <DropdownMenuItem
+                                          onSelect={() => {
+                                            openLibraryCard();
+                                          }}
+                                        >
+                                          <span className="inline-flex items-center">
+                                            <Library className="h-4 w-4 mr-1" />
+                                            Library
+                                          </span>
+                                        </DropdownMenuItem>
+                                      </DropdownMenuContent>
+                                    </DropdownMenu>
+                                    <Textarea
+                                      value={editingText}
+                                      onChange={(e) =>
+                                        setEditingText(e.target.value)
+                                      }
+                                      className="min-h-[80px] border-gray-200 dark:border-gray-600 rounded-xl pl-12"
+                                    />
+                                  </div>
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => handleSaveEdit(message.id)}
+                                      size="sm"
+                                      disabled={!editingText.trim()}
+                                      className="rounded-full"
+                                    >
+                                      Save
+                                    </Button>
+                                    <Button
+                                      onClick={handleCancelEdit}
+                                      variant="outline"
+                                      size="sm"
+                                      className="rounded-full"
+                                    >
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="text-gray-900 dark:text-gray-100">
+                                  {(() => {
+                                    // If there are context resources (uploaded files), don't show the raw text
+                                    // The uploaded files will be displayed as result cards below
+                                    if (contextResources.length > 0) {
+                                      // Extract just the user's actual prompt text, excluding context instructions
+                                      if (
+                                        message.parts &&
+                                        Array.isArray(message.parts)
+                                      ) {
+                                        const textPart = message.parts.find(
+                                          (p) => p.type === "text"
+                                        );
+                                        if (textPart && textPart.text) {
+                                          const text = textPart.text;
+
+                                          // Look for the [USER PROMPT] marker to extract the original prompt
+                                          const userPromptMatch = text.match(
+                                            /\[USER PROMPT\]\s*\n([\s\S]+)$/
+                                          );
+                                          if (userPromptMatch) {
+                                            return userPromptMatch[1].trim();
+                                          }
+
+                                          // Fallback: if no [USER PROMPT] marker, try to extract before context blocks
+                                          const beforeContext = text
+                                            .split(/Context \[/)[0]
+                                            .trim();
+                                          if (
+                                            beforeContext &&
+                                            !beforeContext.includes(
+                                              "You must ground your answer"
+                                            )
+                                          ) {
+                                            return beforeContext;
+                                          }
+
+                                          return "Files uploaded";
+                                        }
+                                      }
+                                      return "Files uploaded";
+                                    }
+
+                                    // Handle different message content formats when no context resources
+                                    if (
+                                      message.parts &&
+                                      Array.isArray(message.parts)
+                                    ) {
+                                      const textPart = message.parts.find(
+                                        (p) => p.type === "text"
+                                      );
+                                      if (textPart && textPart.text) {
+                                        return textPart.text;
+                                      }
+                                    }
+
+                                    // Fallback: if parts is not properly formatted, try to extract text
+                                    if (typeof message.parts === "string") {
+                                      return message.parts;
+                                    }
+
+                                    // Last resort: return a default message
+                                    return "Message content not available";
+                                  })()}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          {contextResources.length > 0 ? (
+                            <div className="mb-4 sm:mb-6 px-3 sm:px-0">
+                              <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4 shadow-sm">
+                                <div className="flex items-center justify-between gap-3 mb-3">
+                                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                                    <CheckCircle className="h-4 w-4" />
+                                    <span className="font-medium">
+                                      Input Context
+                                    </span>
+                                    <span className="text-xs text-blue-600 dark:text-blue-300">
+                                      ({contextResources.length} resources)
+                                    </span>
+                                  </div>
+                                </div>
+                                <SearchResultsCarousel
+                                  results={contextResources.map(
+                                    formatSavedItemForCard
+                                  )}
+                                  type="web"
+                                  messageId={message.id}
+                                  toolName="queued-context"
+                                />
+                              </div>
+                            </div>
+                          ) : null}
+                        </>
+                      ) : (
+                        /* Assistant Message */
+                        <div className="mb-4 sm:mb-6 group px-3 sm:px-0">
+                          {editingMessageId === message.id ? null : (
+                            <div className="space-y-4">
+                              {(() => {
+                                // Group consecutive reasoning steps together
+                                const groupedParts: any[] = [];
+                                let currentReasoningGroup: any[] = [];
+
+                                message.parts.forEach((part, index) => {
+                                  if (
+                                    part.type === "reasoning" &&
+                                    part.text &&
+                                    part.text.trim() !== ""
+                                  ) {
+                                    currentReasoningGroup.push({ part, index });
+                                  } else {
+                                    if (currentReasoningGroup.length > 0) {
+                                      groupedParts.push({
+                                        type: "reasoning-group",
+                                        parts: currentReasoningGroup,
+                                      });
+                                      currentReasoningGroup = [];
+                                    }
+                                    groupedParts.push({
+                                      type: "single",
+                                      part,
+                                      index,
+                                    });
+                                  }
+                                });
+
+                                // Add any remaining reasoning group
+                                if (currentReasoningGroup.length > 0) {
+                                  groupedParts.push({
+                                    type: "reasoning-group",
+                                    parts: currentReasoningGroup,
+                                  });
+                                }
+
+                                return groupedParts.map((group, groupIndex) => {
+                                  if (group.type === "reasoning-group") {
+                                    // Render combined reasoning component
+                                    const combinedText = group.parts
+                                      .map((item: any) => item.part.text)
+                                      .join("\n\n");
+                                    const firstPart = group.parts[0].part;
+                                    const isStreaming = group.parts.some(
+                                      (item: any) =>
+                                        item.part.state === "streaming" ||
+                                        status === "streaming"
+                                    );
+
+                                    return (
+                                      <ReasoningComponent
+                                        key={`reasoning-group-${groupIndex}`}
+                                        part={{
+                                          ...firstPart,
+                                          text: combinedText,
+                                        }}
+                                        messageId={message.id}
+                                        index={groupIndex}
+                                        status={
+                                          isStreaming ? "streaming" : status
+                                        }
+                                        expandedTools={expandedTools}
+                                        toggleToolExpansion={
+                                          toggleToolExpansion
+                                        }
+                                      />
+                                    );
+                                  } else {
+                                    // Render single part normally
+                                    const { part, index } = group;
+
+                                    switch (part.type) {
+                                      // Text parts
+                                      case "text":
+                                        return (
+                                          <div
+                                            key={index}
+                                            className="prose prose-sm max-w-none dark:prose-invert"
+                                          >
+                                            {(() => {
+                                              // Collect citations from tool results that appear BEFORE this text part
+                                              const citations: CitationMap = {};
+                                              let citationNumber = 1;
+
+                                              // Find the current part's index
+                                              const currentPartIndex =
+                                                message.parts.findIndex(
+                                                  (p: any) => p === part
+                                                );
+
+                                              // Look for tool results that come BEFORE this text part
+                                              // This ensures citations match the order the AI references them
+                                              for (
+                                                let i = 0;
+                                                i < currentPartIndex;
+                                                i++
+                                              ) {
+                                                const p = message.parts[i];
+
+                                                // Check for search tool results (financial, web, wiley, and healthcare tools)
+                                                if (
+                                                  (p.type ===
+                                                    "tool-financialSearch" ||
+                                                    p.type ===
+                                                      "tool-webSearch" ||
+                                                    p.type ===
+                                                      "tool-wileySearch" ||
+                                                    p.type ===
+                                                      "tool-clinicalTrialsSearch" ||
+                                                    p.type ===
+                                                      "tool-getClinicalTrialDetails" ||
+                                                    p.type ===
+                                                      "tool-drugInformationSearch" ||
+                                                    p.type ===
+                                                      "tool-biomedicalLiteratureSearch" ||
+                                                    p.type ===
+                                                      "tool-pharmaCompanyAnalysis" ||
+                                                    p.type ===
+                                                      "tool-comprehensiveHealthcareSearch") &&
+                                                  p.state ===
+                                                    "output-available" &&
+                                                  p.output
+                                                ) {
+                                                  try {
+                                                    const output =
+                                                      typeof p.output ===
+                                                      "string"
+                                                        ? JSON.parse(p.output)
+                                                        : (p as any).output; // lol sorry
+
+                                                    // Check if this is a search result with multiple items
+                                                    if (
+                                                      output.results &&
+                                                      Array.isArray(
+                                                        output.results
+                                                      )
+                                                    ) {
+                                                      output.results.forEach(
+                                                        (item: any) => {
+                                                          const key = `[${citationNumber}]`;
+                                                          // Ensure description is a string, not an object
+                                                          let description =
+                                                            item.content ||
+                                                            item.summary ||
+                                                            item.description ||
+                                                            "";
+                                                          if (
+                                                            typeof description ===
+                                                            "object"
+                                                          ) {
+                                                            description =
+                                                              JSON.stringify(
+                                                                description
+                                                              );
+                                                          }
+                                                          citations[key] = [
+                                                            {
+                                                              number:
+                                                                citationNumber.toString(),
+                                                              title:
+                                                                item.title ||
+                                                                `Source ${citationNumber}`,
+                                                              url:
+                                                                item.url || "",
+                                                              description:
+                                                                description,
+                                                              source:
+                                                                item.source,
+                                                              date: item.date,
+                                                              authors:
+                                                                Array.isArray(
+                                                                  item.authors
+                                                                )
+                                                                  ? item.authors
+                                                                  : [],
+                                                              doi: item.doi,
+                                                              relevanceScore:
+                                                                item.relevanceScore ||
+                                                                item.relevance_score,
+                                                              toolType:
+                                                                p.type ===
+                                                                "tool-financialSearch"
+                                                                  ? "financial"
+                                                                  : p.type ===
+                                                                    "tool-wileySearch"
+                                                                  ? "wiley"
+                                                                  : p.type ===
+                                                                    "tool-clinicalTrialsSearch"
+                                                                  ? "clinical-trials"
+                                                                  : p.type ===
+                                                                    "tool-getClinicalTrialDetails"
+                                                                  ? "clinical-trials"
+                                                                  : p.type ===
+                                                                    "tool-drugInformationSearch"
+                                                                  ? "drug-info"
+                                                                  : p.type ===
+                                                                    "tool-biomedicalLiteratureSearch"
+                                                                  ? "biomedical"
+                                                                  : p.type ===
+                                                                    "tool-pharmaCompanyAnalysis"
+                                                                  ? "pharma"
+                                                                  : p.type ===
+                                                                    "tool-comprehensiveHealthcareSearch"
+                                                                  ? "healthcare"
+                                                                  : "web",
+                                                            },
+                                                          ];
+                                                          citationNumber++;
+
+                                                          // Log each citation as it's added
+                                                          console.log(
+                                                            `[Citations] Added citation [${
+                                                              citationNumber - 1
+                                                            }]:`,
+                                                            item.title ||
+                                                              "Untitled"
+                                                          );
+                                                        }
+                                                      );
+                                                    }
+                                                  } catch (error) {
+                                                    console.error(
+                                                      "Error extracting citations from tool:",
+                                                      p.type,
+                                                      error
+                                                    );
+                                                  }
+                                                }
+                                              }
+
+                                              // Debug: Log citations collected
+                                              if (
+                                                Object.keys(citations).length >
+                                                0
+                                              ) {
+                                                console.log(
+                                                  "[Citations] Total citations collected for text part:",
+                                                  Object.keys(citations).length,
+                                                  citations
+                                                );
+                                              }
+
+                                              // If we have citations, use the citation renderer, otherwise use regular markdown
+                                              if (
+                                                Object.keys(citations).length >
+                                                0
+                                              ) {
+                                                return (
+                                                  <CitationTextRenderer
+                                                    text={part.text}
+                                                    citations={citations}
+                                                  />
+                                                );
+                                              } else {
+                                                return (
+                                                  <MemoizedMarkdown
+                                                    text={part.text}
+                                                  />
+                                                );
+                                              }
+                                            })()}
+                                          </div>
+                                        );
+
+                                      // Skip individual reasoning parts as they're handled in groups
+                                      case "reasoning":
+                                        return null;
+
+                                      // Python Executor Tool
+                                      case "tool-codeExecution": {
+                                        const callId = part.toolCallId;
+                                        const isExpanded =
+                                          expandedTools.has(callId);
+
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🐍
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Python Executor
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-blue-600 dark:text-blue-300">
+                                                  Preparing code execution...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🐍
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Python Executor
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-blue-600 dark:text-blue-300">
+                                                  <div className="bg-blue-100 dark:bg-blue-800/30 p-2 rounded">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <span className="font-medium">
+                                                        {part.input
+                                                          .description ||
+                                                          "Executing Python code..."}
+                                                      </span>
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          toggleToolExpansion(
+                                                            callId
+                                                          )
+                                                        }
+                                                        className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
+                                                      >
+                                                        {isExpanded ? (
+                                                          <ChevronUp className="h-3 w-3" />
+                                                        ) : (
+                                                          <ChevronDown className="h-3 w-3" />
+                                                        )}
+                                                      </Button>
+                                                    </div>
+                                                    {isExpanded ? (
+                                                      <pre className="font-mono text-xs whitespace-pre-wrap bg-white dark:bg-gray-800 p-2 rounded border max-h-48 overflow-y-auto">
+                                                        {part.input.code}
+                                                      </pre>
+                                                    ) : (
+                                                      <div className="font-mono text-xs text-blue-700 dark:text-blue-300 line-clamp-2">
+                                                        {
+                                                          part.input.code.split(
+                                                            "\n"
+                                                          )[0]
+                                                        }
+                                                        ...
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2">
+                                                  <CheckCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Python Execution Result
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-green-600 dark:text-green-300">
+                                                  <div className="prose prose-sm max-w-none dark:prose-invert">
+                                                    <MemoizedMarkdown
+                                                      text={part.output}
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <AlertCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Python Execution Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Financial Search Tool
+                                      case "tool-financialSearch": {
+                                        const callId = part.toolCallId;
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🔍
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Financial Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-purple-600 dark:text-purple-300">
+                                                  Preparing financial data
+                                                  search...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🔍
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Financial Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-purple-600 dark:text-purple-300">
+                                                  <div className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded">
+                                                    <div className="font-mono text-xs">
+                                                      Query: &quot;
+                                                      {part.input.query}
+                                                      &quot;
+                                                      {part.input.dataType &&
+                                                        part.input.dataType !==
+                                                          "auto" && (
+                                                          <>
+                                                            <br />
+                                                            Type:{" "}
+                                                            {
+                                                              part.input
+                                                                .dataType
+                                                            }
+                                                          </>
+                                                        )}
+                                                      {part.input
+                                                        .maxResults && (
+                                                        <>
+                                                          <br />
+                                                          Max Results:{" "}
+                                                          {
+                                                            part.input
+                                                              .maxResults
+                                                          }
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-2 text-xs">
+                                                    Searching financial
+                                                    databases and news
+                                                    sources...
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            const financialResults =
+                                              extractSearchResults(part.output);
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 sm:p-4"
+                                              >
+                                                <div className="flex items-center justify-between gap-3 mb-4">
+                                                  <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
+                                                    <CheckCircle className="h-4 w-4" />
+                                                    <span className="font-medium">
+                                                      Financial Search Results
+                                                    </span>
+                                                    <span className="text-xs text-green-600 dark:text-green-300">
+                                                      ({financialResults.length}{" "}
+                                                      results)
+                                                    </span>
+                                                  </div>
+                                                  {part.input?.query && (
+                                                    <div
+                                                      className="text-xs font-mono text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded border border-green-200 dark:border-green-700 max-w-[60%] truncate"
+                                                      title={part.input.query}
+                                                    >
+                                                      {part.input.query}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <SearchResultsCarousel
+                                                  results={financialResults}
+                                                  type="financial"
+                                                  toolName="financialSearch"
+                                                  messageId={message.id}
+                                                />
+                                              </div>
+                                            );
+                                          case "output-error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <AlertCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Financial Search Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Web Search Tool
+                                      case "tool-webSearch": {
+                                        const callId = part.toolCallId;
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🌐
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Web Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-cyan-600 dark:text-cyan-300">
+                                                  Preparing web search...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🌐
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Web Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-cyan-600 dark:text-cyan-300">
+                                                  <div className="bg-cyan-100 dark:bg-cyan-800/30 p-2 rounded">
+                                                    <div className="text-xs">
+                                                      Searching for: &quot;
+                                                      {part.input.query}&quot;
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-2 text-xs">
+                                                    Searching the world wide
+                                                    web...
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            const webResults =
+                                              extractSearchResults(part.output);
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4"
+                                              >
+                                                <div className="flex items-center justify-between gap-3 mb-4">
+                                                  <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
+                                                    <CheckCircle className="h-4 w-4" />
+                                                    <span className="font-medium">
+                                                      Web Search Results
+                                                    </span>
+                                                    <span className="text-xs text-blue-600 dark:text-blue-300">
+                                                      ({webResults.length}{" "}
+                                                      results)
+                                                    </span>
+                                                  </div>
+                                                  {part.input?.query && (
+                                                    <div
+                                                      className="text-xs font-mono text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded border border-blue-200 dark:border-blue-700 max-w-[60%] truncate"
+                                                      title={part.input.query}
+                                                    >
+                                                      {part.input.query}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <SearchResultsCarousel
+                                                  results={webResults}
+                                                  type="web"
+                                                  toolName="webSearch"
+                                                  messageId={message.id}
+                                                />
+                                              </div>
+                                            );
+                                          case "output-error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <AlertCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Web Search Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Wiley Search Tool
+                                      case "tool-wileySearch": {
+                                        const callId = part.toolCallId;
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+                                                  <span className="text-lg">
+                                                    📚
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Wiley Academic Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-amber-600 dark:text-amber-300">
+                                                  Searching academic journals
+                                                  and textbooks...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
+                                                  <span className="text-lg">
+                                                    📚
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Wiley Academic Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-amber-600 dark:text-amber-300">
+                                                  <div className="font-medium">
+                                                    Searching for: &quot;
+                                                    {part.input.query}&quot;
+                                                  </div>
+                                                </div>
+                                                <div className="mt-2 text-xs">
+                                                  Searching academic finance
+                                                  literature...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            const wileyResults =
+                                              extractSearchResults(part.output);
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 sm:p-4"
+                                              >
+                                                <div className="flex items-center justify-between gap-3 mb-4">
+                                                  <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
+                                                    <CheckCircle className="h-4 w-4" />
+                                                    <span className="font-medium">
+                                                      Wiley Academic Results
+                                                    </span>
+                                                    <span className="text-xs text-amber-600 dark:text-amber-300">
+                                                      ({wileyResults.length}{" "}
+                                                      results)
+                                                    </span>
+                                                  </div>
+                                                  {part.input?.query && (
+                                                    <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-800/30 px-2 py-1 rounded">
+                                                      &quot;{part.input.query}
+                                                      &quot;
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                <SearchResultsCarousel
+                                                  results={wileyResults}
+                                                  type="wiley"
+                                                  toolName="wileySearch"
+                                                  messageId={message.id}
+                                                />
+                                              </div>
+                                            );
+                                          case "output-error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <AlertCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Wiley Search Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Chart Creation Tool
+                                      case "tool-createChart": {
+                                        const callId = part.toolCallId;
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-2">
+                                                  <span className="text-lg">
+                                                    📈
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Creating Chart
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-emerald-600 dark:text-emerald-300">
+                                                  Preparing chart
+                                                  visualization...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-2">
+                                                  <span className="text-lg">
+                                                    📈
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Creating Chart
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-emerald-600 dark:text-emerald-300">
+                                                  <div className="bg-emerald-100 dark:bg-emerald-800/30 p-2 rounded">
+                                                    <div className="font-mono text-xs">
+                                                      Creating {part.input.type}{" "}
+                                                      chart: &quot;
+                                                      {part.input.title}
+                                                      &quot;
+                                                      <br />
+                                                      Data Series:{" "}
+                                                      {part.input.dataSeries
+                                                        ?.length || 0}
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-2 text-xs">
+                                                    Generating interactive
+                                                    visualization...
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            // Charts are expanded by default, collapsed only if explicitly set
+                                            const isChartExpanded =
+                                              !expandedTools.has(
+                                                `collapsed-${callId}`
+                                              );
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2"
+                                              >
+                                                {isChartExpanded ? (
+                                                  <div className="relative">
+                                                    <Button
+                                                      variant="ghost"
+                                                      size="sm"
+                                                      onClick={() =>
+                                                        toggleChartExpansion(
+                                                          callId
+                                                        )
+                                                      }
+                                                      className="absolute right-2 top-2 z-10 h-6 w-6 p-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-full shadow-sm"
+                                                    >
+                                                      <ChevronUp className="h-4 w-4" />
+                                                    </Button>
+                                                    <FinancialChart
+                                                      {...part.output}
+                                                    />
+                                                  </div>
+                                                ) : (
+                                                  <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
+                                                    <div className="flex items-center justify-between mb-2">
+                                                      <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
+                                                        <span className="text-lg">
+                                                          📈
+                                                        </span>
+                                                        <span className="font-medium">
+                                                          {part.output.title}
+                                                        </span>
+                                                      </div>
+                                                      <Button
+                                                        variant="ghost"
+                                                        size="sm"
+                                                        onClick={() =>
+                                                          toggleChartExpansion(
+                                                            callId
+                                                          )
+                                                        }
+                                                        className="h-6 w-6 p-0 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
+                                                      >
+                                                        <ChevronDown className="h-4 w-4" />
+                                                      </Button>
+                                                    </div>
+                                                    <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
+                                                      <div>
+                                                        Chart Type:{" "}
+                                                        {part.output.chartType}
+                                                      </div>
+                                                      <div>
+                                                        Data Series:{" "}
+                                                        {part.output.dataSeries
+                                                          ?.length || 0}
+                                                      </div>
+                                                      {part.output
+                                                        .description && (
+                                                        <div className="text-xs">
+                                                          {
+                                                            part.output
+                                                              .description
+                                                          }
+                                                        </div>
+                                                      )}
+                                                    </div>
+                                                    <div className="text-center mt-3">
+                                                      <button
+                                                        onClick={() =>
+                                                          toggleChartExpansion(
+                                                            callId
+                                                          )
+                                                        }
+                                                        className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 underline"
+                                                      >
+                                                        View Chart
+                                                      </button>
+                                                    </div>
+                                                  </div>
+                                                )}
+                                              </div>
+                                            );
+                                          case "output-error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <AlertCircle className="h-4 w-4" />
+                                                  <span className="font-medium">
+                                                    Chart Creation Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Clinical Trials Search Tool
+                                      case "tool-clinicalTrialsSearch":
+                                      // Get Clinical Trial Details Tool
+                                      case "tool-getClinicalTrialDetails":
+                                      // Drug Information Search Tool
+                                      case "tool-drugInformationSearch":
+                                      // Biomedical Literature Search Tool
+                                      case "tool-biomedicalLiteratureSearch":
+                                      // Pharma Company Analysis Tool
+                                      case "tool-pharmaCompanyAnalysis":
+                                      // Comprehensive Healthcare Search Tool
+                                      case "tool-comprehensiveHealthcareSearch": {
+                                        const callId = part.toolCallId;
+                                        switch (part.state) {
+                                          case "input-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🧬
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    {part.type ===
+                                                      "tool-clinicalTrialsSearch" &&
+                                                      "Searching Clinical Trials"}
+                                                    {part.type ===
+                                                      "tool-getClinicalTrialDetails" &&
+                                                      "Fetching Clinical Trial Details"}
+                                                    {part.type ===
+                                                      "tool-drugInformationSearch" &&
+                                                      "Searching Drug Information"}
+                                                    {part.type ===
+                                                      "tool-biomedicalLiteratureSearch" &&
+                                                      "Searching Biomedical Literature"}
+                                                    {part.type ===
+                                                      "tool-pharmaCompanyAnalysis" &&
+                                                      "Analyzing Pharmaceutical Company"}
+                                                    {part.type ===
+                                                      "tool-comprehensiveHealthcareSearch" &&
+                                                      "Comprehensive Healthcare Search"}
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-indigo-600 dark:text-indigo-300">
+                                                  Searching healthcare
+                                                  databases...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "input-available":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🧬
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    {part.type ===
+                                                      "tool-clinicalTrialsSearch" &&
+                                                      "Searching Clinical Trials"}
+                                                    {part.type ===
+                                                      "tool-getClinicalTrialDetails" &&
+                                                      "Fetching Clinical Trial Details"}
+                                                    {part.type ===
+                                                      "tool-drugInformationSearch" &&
+                                                      "Searching Drug Information"}
+                                                    {part.type ===
+                                                      "tool-biomedicalLiteratureSearch" &&
+                                                      "Searching Biomedical Literature"}
+                                                    {part.type ===
+                                                      "tool-pharmaCompanyAnalysis" &&
+                                                      "Analyzing Pharmaceutical Company"}
+                                                    {part.type ===
+                                                      "tool-comprehensiveHealthcareSearch" &&
+                                                      "Comprehensive Healthcare Search"}
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-indigo-600 dark:text-indigo-300">
+                                                  <div className="bg-indigo-100 dark:bg-indigo-800/30 p-2 rounded">
+                                                    <div className="font-mono text-xs">
+                                                      {part.type ===
+                                                      "tool-getClinicalTrialDetails" ? (
+                                                        <>
+                                                          NCT ID:{" "}
+                                                          {part.input.nctId ||
+                                                            "N/A"}
+                                                        </>
+                                                      ) : (
+                                                        <>
+                                                          Query: &quot;
+                                                          {part.input.query ||
+                                                            "N/A"}
+                                                          &quot;
+                                                          {part.input
+                                                            .maxResults && (
+                                                            <>
+                                                              <br />
+                                                              Max Results:{" "}
+                                                              {
+                                                                part.input
+                                                                  .maxResults
+                                                              }
+                                                            </>
+                                                          )}
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+                                                  <div className="mt-2 text-xs">
+                                                    Retrieving healthcare data
+                                                    from specialized sources...
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          case "output-available":
+                                            // Special handling for getClinicalTrialDetails
+                                            if (
+                                              part.type ===
+                                              "tool-getClinicalTrialDetails"
+                                            ) {
+                                              try {
+                                                const detailData = JSON.parse(
+                                                  part.output
+                                                );
+
+                                                // Convert single trial detail to array format for display
+                                                const detailResults =
+                                                  detailData.found &&
+                                                  detailData.data
+                                                    ? [
+                                                        {
+                                                          id:
+                                                            detailData.nctId ||
+                                                            detailData.data
+                                                              .nct_id,
+                                                          title:
+                                                            detailData.title ||
+                                                            detailData.data
+                                                              .brief_title ||
+                                                            detailData.data
+                                                              .official_title ||
+                                                            "Clinical Trial",
+                                                          summary:
+                                                            detailData.data
+                                                              .brief_summary ||
+                                                            "No summary available",
+                                                          source:
+                                                            "ClinicalTrials.gov",
+                                                          date:
+                                                            detailData.data
+                                                              .start_date || "",
+                                                          url:
+                                                            detailData.url ||
+                                                            "",
+                                                          fullContent:
+                                                            JSON.stringify(
+                                                              detailData.data
+                                                            ),
+                                                          dataType:
+                                                            "clinical_trials",
+                                                          nctId:
+                                                            detailData.nctId ||
+                                                            detailData.data
+                                                              .nct_id,
+                                                          status:
+                                                            detailData.data
+                                                              .overall_status,
+                                                          phase:
+                                                            detailData.data
+                                                              .phases,
+                                                          relevanceScore: 1,
+                                                        },
+                                                      ]
+                                                    : [];
+
+                                                return (
+                                                  <div
+                                                    key={callId}
+                                                    className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 sm:p-4"
+                                                  >
+                                                    <div className="flex items-center justify-between gap-3 mb-4">
+                                                      <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                                                        <CheckCircle className="h-4 w-4" />
+                                                        <span className="font-medium">
+                                                          Clinical Trial Details
+                                                        </span>
+                                                      </div>
+                                                      {detailData.found && (
+                                                        <span className="text-xs text-indigo-600 dark:text-indigo-400">
+                                                          {detailData.nctId}
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                    {part.input?.query && (
+                                                      <div className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/30 px-2 py-1 rounded mb-2">
+                                                        &quot;{part.input.query}
+                                                        &quot;
+                                                      </div>
+                                                    )}
+                                                    {detailResults.length >
+                                                    0 ? (
+                                                      <SearchResultsCarousel
+                                                        results={detailResults}
+                                                        type="healthcare"
+                                                        toolName="getClinicalTrialDetails"
+                                                        messageId={message.id}
+                                                      />
+                                                    ) : (
+                                                      <div className="text-sm text-gray-500">
+                                                        {detailData.message ||
+                                                          "No trial found"}
+                                                      </div>
+                                                    )}
+                                                  </div>
+                                                );
+                                              } catch (e) {
+                                                console.error(
+                                                  "Failed to parse clinical trial details:",
+                                                  e
+                                                );
+                                              }
+                                            }
+
+                                            // Regular handling for other healthcare tools
+                                            const healthcareResults =
+                                              extractSearchResults(part.output);
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 sm:p-4"
+                                              >
+                                                <div className="flex items-center justify-between gap-3 mb-4">
+                                                  <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
+                                                    <CheckCircle className="h-4 w-4" />
+                                                    <span className="font-medium">
+                                                      {part.type ===
+                                                        "tool-clinicalTrialsSearch" &&
+                                                        "Clinical Trials Results"}
+                                                      {part.type ===
+                                                        "tool-drugInformationSearch" &&
+                                                        "Drug Information Results"}
+                                                      {part.type ===
+                                                        "tool-biomedicalLiteratureSearch" &&
+                                                        "Biomedical Literature Results"}
+                                                      {part.type ===
+                                                        "tool-pharmaCompanyAnalysis" &&
+                                                        "Pharmaceutical Analysis Results"}
+                                                      {part.type ===
+                                                        "tool-comprehensiveHealthcareSearch" &&
+                                                        "Healthcare Search Results"}
+                                                    </span>
+                                                  </div>
+                                                  {healthcareResults.length >
+                                                    0 && (
+                                                    <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
+                                                      <span>
+                                                        {
+                                                          healthcareResults.length
+                                                        }{" "}
+                                                        results
+                                                      </span>
+                                                      {healthcareResults.some(
+                                                        (r: any) =>
+                                                          r.dataType ===
+                                                          "clinical_trials"
+                                                      ) && (
+                                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
+                                                          Clinical Trials
+                                                        </span>
+                                                      )}
+                                                      {healthcareResults.some(
+                                                        (r: any) =>
+                                                          r.dataType ===
+                                                          "drug_labels"
+                                                      ) && (
+                                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
+                                                          Drug Labels
+                                                        </span>
+                                                      )}
+                                                      {healthcareResults.some(
+                                                        (r: any) =>
+                                                          r.dataType ===
+                                                          "research_papers"
+                                                      ) && (
+                                                        <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
+                                                          Research Papers
+                                                        </span>
+                                                      )}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                {part.input?.query && (
+                                                  <div className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/30 px-2 py-1 rounded mb-2">
+                                                    &quot;{part.input.query}
+                                                    &quot;
+                                                  </div>
+                                                )}
+                                                <SearchResultsCarousel
+                                                  results={healthcareResults}
+                                                  type="healthcare"
+                                                  toolName={
+                                                    part.type ===
+                                                    "tool-clinicalTrialsSearch"
+                                                      ? "clinicalTrialsSearch"
+                                                      : part.type ===
+                                                        "tool-drugInformationSearch"
+                                                      ? "drugInformationSearch"
+                                                      : part.type ===
+                                                        "tool-biomedicalLiteratureSearch"
+                                                      ? "biomedicalLiteratureSearch"
+                                                      : part.type ===
+                                                        "tool-pharmaCompanyAnalysis"
+                                                      ? "pharmaCompanyAnalysis"
+                                                      : "comprehensiveHealthcareSearch"
+                                                  }
+                                                  messageId={message.id}
+                                                />
+                                              </div>
+                                            );
+                                          case "output-streaming":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
+                                                  <span className="text-lg">
+                                                    🧬
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Healthcare Search
+                                                  </span>
+                                                  <Clock className="h-3 w-3 animate-spin" />
+                                                </div>
+                                                <div className="text-sm text-indigo-600 dark:text-indigo-300">
+                                                  Retrieving results...
+                                                </div>
+                                              </div>
+                                            );
+                                          case "error":
+                                            return (
+                                              <div
+                                                key={callId}
+                                                className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
+                                              >
+                                                <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
+                                                  <span className="text-lg">
+                                                    ❌
+                                                  </span>
+                                                  <span className="font-medium">
+                                                    Healthcare Search Error
+                                                  </span>
+                                                </div>
+                                                <div className="text-sm text-red-600 dark:text-red-300">
+                                                  {part.errorText}
+                                                </div>
+                                              </div>
+                                            );
+                                        }
+                                        break;
+                                      }
+
+                                      // Generic dynamic tool fallback (for future tools)
+                                      case "dynamic-tool":
+                                        return (
+                                          <div
+                                            key={index}
+                                            className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
+                                          >
+                                            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
+                                              <Wrench className="h-4 w-4" />
+                                              <span className="font-medium">
+                                                Tool: {part.toolName}
+                                              </span>
+                                            </div>
+                                            <div className="text-sm text-purple-600 dark:text-purple-300">
+                                              {part.state ===
+                                                "input-streaming" && (
+                                                <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
+                                                  {JSON.stringify(
+                                                    part.input,
+                                                    null,
+                                                    2
+                                                  )}
+                                                </pre>
+                                              )}
+                                              {part.state ===
+                                                "output-available" && (
+                                                <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
+                                                  {JSON.stringify(
+                                                    part.output,
+                                                    null,
+                                                    2
+                                                  )}
+                                                </pre>
+                                              )}
+                                              {part.state ===
+                                                "output-error" && (
+                                                <div className="text-red-600 dark:text-red-300">
+                                                  Error: {part.errorText}
+                                                </div>
+                                              )}
+                                            </div>
+                                          </div>
+                                        );
+
+                                      default:
+                                        return null;
+                                    }
+                                  }
+                                });
+                              })()}
+                            </div>
+                          )}
+
+                          {/* Message Actions */}
+                          {message.role === "assistant" && (
+                            <div className="flex justify-end gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {messages[messages.length - 1]?.id ===
+                                message.id &&
+                                canRegenerate && (
+                                  <Button
+                                    onClick={() => {
+                                      track("Message Regenerated", {
+                                        messageCount: messages.length,
+                                        lastMessageRole:
+                                          messages[messages.length - 1]?.role,
+                                      });
+                                      regenerate();
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    disabled={
+                                      status !== "ready" && status !== "error"
+                                    }
+                                    className="h-7 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                  >
+                                    <RotateCcw className="h-3 w-3" />
+                                  </Button>
+                                )}
+
+                              {!isLoading && (
+                                <Button
+                                  onClick={() =>
+                                    copyToClipboard(getMessageText(message))
+                                  }
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                                >
+                                  <Copy className="h-3 w-3" />
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </motion.div>
+                  );
+                })}
+              </AnimatePresence>
+              {virtualizationEnabled && (
+                <>
+                  <div
+                    style={{
+                      height: Math.max(0, visibleRange.start * avgRowHeight),
+                    }}
+                  />
+                  <div
+                    style={{
+                      height: Math.max(
+                        0,
+                        (deferredMessages.length - visibleRange.end) *
+                          avgRowHeight
+                      ),
+                    }}
+                  />
+                </>
+              )}
+
+              {/* Coffee Loading Message */}
+              <AnimatePresence>
+                {status === "submitted" &&
+                  messages.length > 0 &&
+                  messages[messages.length - 1]?.role === "user" && (
+                    <motion.div
+                      className="mb-6"
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -10 }}
+                      transition={{ duration: 0.3, ease: "easeOut" }}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="text-amber-600 dark:text-amber-400 text-lg mt-0.5">
+                          ☕
+                        </div>
+                        <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2 max-w-xs">
+                          <div className="text-amber-700 dark:text-amber-300 text-sm">
+                            Just grabbing a coffee and contemplating the meaning
+                            of life... ☕️
+                          </div>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+              </AnimatePresence>
+
+              <div ref={messagesEndRef} />
+              <div ref={bottomAnchorRef} className="h-px w-full" />
+            </div>
+
+            {/* Gradient fade above input form */}
+            <AnimatePresence>
+              {(isFormAtBottom || isMobile) && (
+                <>
+                  <motion.div
+                    className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl h-36 pointer-events-none z-45"
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    exit={{ opacity: 0 }}
+                    transition={{ duration: 0.3, ease: "easeOut" }}
+                  >
+                    <div
+                      className="dark:hidden absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0.98) 30%, rgba(255,255,255,0.8) 60%, rgba(255,255,255,0) 100%)",
+                      }}
+                    />
+                    <div
+                      className="hidden dark:block absolute inset-0"
+                      style={{
+                        background:
+                          "linear-gradient(to top, rgb(3 7 18) 0%, rgb(3 7 18 / 0.98) 30%, rgb(3 7 18 / 0.8) 60%, transparent 100%)",
+                      }}
+                    />
+                  </motion.div>
+                </>
+              )}
+            </AnimatePresence>
+
+            {/* Error Display */}
+            {error && (
+              <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4">
+                <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+                  <AlertCircle className="h-4 w-4" />
+                  <span className="font-medium">
+                    {error.message?.includes("PAYMENT_REQUIRED")
+                      ? "Payment Setup Required"
+                      : "Something went wrong"}
+                  </span>
                 </div>
-              </motion.div>
+                <p className="text-red-600 dark:text-red-400 text-sm mt-1">
+                  {error.message?.includes("PAYMENT_REQUIRED")
+                    ? "You need to set up a payment method to use the pay-per-use plan. You only pay for what you use."
+                    : "Please check your API keys and try again."}
+                </p>
+                <Button
+                  onClick={() => {
+                    if (error.message?.includes("PAYMENT_REQUIRED")) {
+                      // Redirect to subscription setup
+                      const url = `/api/checkout?plan=pay_per_use&redirect=${encodeURIComponent(
+                        window.location.href
+                      )}`;
+                      window.location.href = url;
+                    } else {
+                      window.location.reload();
+                    }
+                  }}
+                  variant="outline"
+                  size="sm"
+                  className="mt-2 text-red-700 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20"
+                >
+                  {error.message?.includes("PAYMENT_REQUIRED") ? (
+                    <>
+                      <span className="mr-1">💳</span>
+                      Setup Payment
+                    </>
+                  ) : (
+                    <>
+                      <RotateCcw className="h-3 w-3 mr-1" />
+                      Retry
+                    </>
+                  )}
+                </Button>
+              </div>
             )}
 
-            {/* Input Form when not at bottom (desktop only) */}
-            {!isFormAtBottom && messages.length === 0 && !isMobile && (
-              <motion.div
-                className="mt-8 mb-16"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.9, duration: 0.5 }}
-              >
-                <div className="w-full max-w-3xl mx-auto px-4 sm:px-6">
+            {/* Input Form at bottom */}
+            <AnimatePresence>
+              {(isFormAtBottom || isMobile) && (
+                <motion.div
+                  className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl px-3 sm:px-6 pt-4 sm:pt-5 pb-6 sm:pb-7 z-50"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                  transition={{ duration: 0.3, ease: "easeOut" }}
+                >
                   <form
                     onSubmit={handleSubmit}
                     className="max-w-3xl mx-auto space-y-2"
@@ -3760,6 +5765,7 @@ export function ChatInterface({
                     )}
                     {libraryContextBanner}
                     <div className="relative flex items-end">
+                      {/* Plus button for Library dropdown */}
                       <DropdownMenu
                         open={inputMenuOpen}
                         onOpenChange={setInputMenuOpen}
@@ -3767,10 +5773,11 @@ export function ChatInterface({
                         <DropdownMenuTrigger asChild>
                           <Button
                             type="button"
-                            variant="ghost"
                             size="sm"
-                            className="absolute left-1.5 sm:left-2 top-1/2 -translate-y-1/2 h-7 w-7 sm:h-8 sm:w-8 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300"
+                            // Ensure the button is visible and not covered
+                            className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300 shadow-none z-10"
                             tabIndex={-1}
+                            aria-label="Open Library"
                           >
                             <Plus className="h-4 w-4" />
                           </Button>
@@ -3778,7 +5785,7 @@ export function ChatInterface({
                         <DropdownMenuContent
                           align="start"
                           sideOffset={6}
-                          className="w-40 text-xs"
+                          className="w-36 text-xs"
                         >
                           <DropdownMenuItem onSelect={handleFileMenuSelect}>
                             <span className="inline-flex items-center">
@@ -3788,7 +5795,11 @@ export function ChatInterface({
                           </DropdownMenuItem>
                           <DropdownMenuItem
                             onSelect={() => {
-                              openLibraryCard();
+                              if (user) {
+                                openLibraryCard();
+                              } else {
+                                setShowAuthModal(true);
+                              }
                             }}
                           >
                             <span className="inline-flex items-center">
@@ -3802,7 +5813,7 @@ export function ChatInterface({
                         value={input}
                         onChange={handleInputChange}
                         placeholder="Ask a question..."
-                        className="w-full resize-none border-gray-200 dark:border-gray-700 rounded-2xl pl-10 sm:pl-12 pr-14 sm:pr-16 py-2.5 sm:py-3 min-h-[38px] sm:min-h-[40px] max-h-28 sm:max-h-32 focus:border-gray-300 dark:focus:border-gray-600 focus:ring-0 bg-gray-50 dark:bg-gray-900/50 overflow-y-auto text-sm sm:text-base"
+                        className="w-full resize-none border-gray-200 dark:border-gray-700 rounded-2xl pl-12 sm:pl-14 pr-14 sm:pr-16 py-3 sm:py-3 min-h-[44px] sm:min-h-[48px] max-h-28 sm:max-h-32 focus:border-gray-300 dark:focus:border-gray-600 focus:ring-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm overflow-y-auto text-base shadow-lg border"
                         disabled={status === "error" || isLoading}
                         rows={1}
                         style={{ lineHeight: "1.5" }}
@@ -3820,15 +5831,15 @@ export function ChatInterface({
                           !canStop &&
                           (isLoading || !input.trim() || status === "error")
                         }
-                        className="absolute right-1.5 sm:right-2 top-1/2 -translate-y-1/2 rounded-xl h-7 w-7 sm:h-8 sm:w-8 p-0 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 dark:text-gray-900"
+                        className="absolute right-2 sm:right-2 top-1/2 -translate-y-1/2 rounded-xl h-8 w-8 sm:h-9 sm:w-9 p-0 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 dark:text-gray-900 shadow-lg"
                       >
                         {canStop ? (
-                          <Square className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+                          <Square className="h-4 w-4" />
                         ) : isLoading ? (
-                          <Loader2 className="h-3.5 w-3.5 sm:h-4 sm:w-4 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <svg
-                            className="h-3.5 w-3.5 sm:h-4 sm:w-4"
+                            className="h-4 w-4"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -3845,2054 +5856,92 @@ export function ChatInterface({
                     </div>
                   </form>
 
-                  {/* Powered by Valyu */}
+                  {/* Mobile Bottom Bar - Social links and disclaimer below input */}
                   <motion.div
-                    className="flex items-center justify-center mt-4"
+                    className="block sm:hidden mt-4 pt-3 border-t border-gray-200 dark:border-gray-700"
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    transition={{ delay: 1.1, duration: 0.5 }}
+                    transition={{ delay: 0.5, duration: 0.3 }}
                   >
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      Powered by
-                    </span>
-                    <a
-                      href="https://platform.valyu.network"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center hover:scale-105 transition-transform"
-                    >
-                      <Image
-                        src="/valyu.svg"
-                        alt="Valyu"
-                        width={60}
-                        height={60}
-                        className="h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer dark:invert"
-                      />
-                    </a>
-                  </motion.div>
-                </div>
-              </motion.div>
-            )}
-
-            <AnimatePresence initial={!virtualizationEnabled}>
-              {(virtualizationEnabled
-                ? deferredMessages
-                    .slice(visibleRange.start, visibleRange.end)
-                    .map((message, i) => ({
-                      item: message,
-                      realIndex: visibleRange.start + i,
-                    }))
-                : deferredMessages.map((m, i) => ({ item: m, realIndex: i }))
-              ).map(({ item: message }) => {
-                const contextResources = contextResourceMap[message.id] || [];
-
-                return (
-                  <motion.div
-                    key={message.id}
-                    data-message-id={message.id}
-                    className="group"
-                    initial={
-                      virtualizationEnabled ? undefined : { opacity: 0, y: 20 }
-                    }
-                    animate={
-                      virtualizationEnabled ? undefined : { opacity: 1, y: 0 }
-                    }
-                    exit={
-                      virtualizationEnabled ? undefined : { opacity: 0, y: -20 }
-                    }
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  >
-                    {message.role === "user" ? (
-                      <>
-                        <div className="flex justify-end mb-3 px-3 sm:px-0">
-                          <div className="max-w-[85%] sm:max-w-[80%] bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 sm:px-4 py-3 sm:py-3 relative group shadow-sm">
-                            {/* User Message Actions */}
-                            <div className="absolute -left-12 sm:-left-14 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 sm:gap-1">
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleEditMessage(message.id)}
-                                className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700"
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={async () => {
-                                  // Extract text content from the message
-                                  let textContent = "";
-                                  if (
-                                    message.parts &&
-                                    Array.isArray(message.parts)
-                                  ) {
-                                    const textPart = message.parts.find(
-                                      (p) => p.type === "text"
-                                    );
-                                    if (textPart && textPart.text) {
-                                      textContent = textPart.text;
-                                    }
-                                  } else if (
-                                    typeof message.parts === "string"
-                                  ) {
-                                    textContent = message.parts;
-                                  }
-
-                                  if (textContent) {
-                                    await copyToClipboard(textContent);
-                                    // Show "copied" notification
-                                    setCopiedMessageId(message.id);
-                                    // Hide notification after 2 seconds
-                                    setTimeout(() => {
-                                      setCopiedMessageId(null);
-                                    }, 2000);
-                                  }
-                                }}
-                                className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 relative"
-                                title={
-                                  copiedMessageId === message.id
-                                    ? "Copied!"
-                                    : "Copy message"
-                                }
-                              >
-                                {copiedMessageId === message.id ? (
-                                  <Check className="h-3 w-3 text-green-600" />
-                                ) : (
-                                  <Copy className="h-3 w-3" />
-                                )}
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => handleDeleteMessage(message.id)}
-                                className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 text-red-500 hover:text-red-700"
-                              >
-                                <Trash2 className="h-3 w-3" />
-                              </Button>
-                            </div>
-
-                            {editingMessageId === message.id ? (
-                              <div className="space-y-3">
-                                <div className="relative">
-                                  <DropdownMenu>
-                                    <DropdownMenuTrigger asChild>
-                                      <Button
-                                        type="button"
-                                        variant="ghost"
-                                        size="sm"
-                                        className="absolute left-2 top-2.5 h-8 w-8 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300 shadow-none"
-                                        tabIndex={-1}
-                                      >
-                                        <Plus className="h-4 w-4" />
-                                      </Button>
-                                    </DropdownMenuTrigger>
-                                    <DropdownMenuContent
-                                      align="start"
-                                      sideOffset={6}
-                                      className="w-32 text-xs"
-                                    >
-                                      <DropdownMenuItem
-                                        onSelect={() => {
-                                          openLibraryCard();
-                                        }}
-                                      >
-                                        <span className="inline-flex items-center">
-                                          <Library className="h-4 w-4 mr-1" />
-                                          Library
-                                        </span>
-                                      </DropdownMenuItem>
-                                    </DropdownMenuContent>
-                                  </DropdownMenu>
-                                  <Textarea
-                                    value={editingText}
-                                    onChange={(e) =>
-                                      setEditingText(e.target.value)
-                                    }
-                                    className="min-h-[80px] border-gray-200 dark:border-gray-600 rounded-xl pl-12"
-                                  />
-                                </div>
-                                <div className="flex gap-2">
-                                  <Button
-                                    onClick={() => handleSaveEdit(message.id)}
-                                    size="sm"
-                                    disabled={!editingText.trim()}
-                                    className="rounded-full"
-                                  >
-                                    Save
-                                  </Button>
-                                  <Button
-                                    onClick={handleCancelEdit}
-                                    variant="outline"
-                                    size="sm"
-                                    className="rounded-full"
-                                  >
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <div className="text-gray-900 dark:text-gray-100">
-                                {(() => {
-                                  // If there are context resources (uploaded files), don't show the raw text
-                                  // The uploaded files will be displayed as result cards below
-                                  if (contextResources.length > 0) {
-                                    // Extract just the user's actual prompt text, excluding context instructions
-                                    if (
-                                      message.parts &&
-                                      Array.isArray(message.parts)
-                                    ) {
-                                      const textPart = message.parts.find(
-                                        (p) => p.type === "text"
-                                      );
-                                      if (textPart && textPart.text) {
-                                        const text = textPart.text;
-
-                                        // Look for the [USER PROMPT] marker to extract the original prompt
-                                        const userPromptMatch = text.match(
-                                          /\[USER PROMPT\]\s*\n([\s\S]+)$/
-                                        );
-                                        if (userPromptMatch) {
-                                          return userPromptMatch[1].trim();
-                                        }
-
-                                        // Fallback: if no [USER PROMPT] marker, try to extract before context blocks
-                                        const beforeContext = text
-                                          .split(/Context \[/)[0]
-                                          .trim();
-                                        if (
-                                          beforeContext &&
-                                          !beforeContext.includes(
-                                            "You must ground your answer"
-                                          )
-                                        ) {
-                                          return beforeContext;
-                                        }
-
-                                        return "Files uploaded";
-                                      }
-                                    }
-                                    return "Files uploaded";
-                                  }
-
-                                  // Handle different message content formats when no context resources
-                                  if (
-                                    message.parts &&
-                                    Array.isArray(message.parts)
-                                  ) {
-                                    const textPart = message.parts.find(
-                                      (p) => p.type === "text"
-                                    );
-                                    if (textPart && textPart.text) {
-                                      return textPart.text;
-                                    }
-                                  }
-
-                                  // Fallback: if parts is not properly formatted, try to extract text
-                                  if (typeof message.parts === "string") {
-                                    return message.parts;
-                                  }
-
-                                  // Last resort: return a default message
-                                  return "Message content not available";
-                                })()}
-                              </div>
-                            )}
-                          </div>
-                        </div>
-
-                        {contextResources.length > 0 ? (
-                          <div className="mb-4 sm:mb-6 px-3 sm:px-0">
-                            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4 shadow-sm">
-                              <div className="flex items-center justify-between gap-3 mb-3">
-                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                                  <CheckCircle className="h-4 w-4" />
-                                  <span className="font-medium">
-                                    Input Context
-                                  </span>
-                                  <span className="text-xs text-blue-600 dark:text-blue-300">
-                                    ({contextResources.length} resources)
-                                  </span>
-                                </div>
-                              </div>
-                              <SearchResultsCarousel
-                                results={contextResources.map(
-                                  formatSavedItemForCard
-                                )}
-                                type="web"
-                                messageId={message.id}
-                                toolName="queued-context"
-                              />
-                            </div>
-                          </div>
-                        ) : null}
-                      </>
-                    ) : (
-                      /* Assistant Message */
-                      <div className="mb-4 sm:mb-6 group px-3 sm:px-0">
-                        {editingMessageId === message.id ? null : (
-                          <div className="space-y-4">
-                            {(() => {
-                              // Group consecutive reasoning steps together
-                              const groupedParts: any[] = [];
-                              let currentReasoningGroup: any[] = [];
-
-                              message.parts.forEach((part, index) => {
-                                if (
-                                  part.type === "reasoning" &&
-                                  part.text &&
-                                  part.text.trim() !== ""
-                                ) {
-                                  currentReasoningGroup.push({ part, index });
-                                } else {
-                                  if (currentReasoningGroup.length > 0) {
-                                    groupedParts.push({
-                                      type: "reasoning-group",
-                                      parts: currentReasoningGroup,
-                                    });
-                                    currentReasoningGroup = [];
-                                  }
-                                  groupedParts.push({
-                                    type: "single",
-                                    part,
-                                    index,
-                                  });
-                                }
-                              });
-
-                              // Add any remaining reasoning group
-                              if (currentReasoningGroup.length > 0) {
-                                groupedParts.push({
-                                  type: "reasoning-group",
-                                  parts: currentReasoningGroup,
-                                });
-                              }
-
-                              return groupedParts.map((group, groupIndex) => {
-                                if (group.type === "reasoning-group") {
-                                  // Render combined reasoning component
-                                  const combinedText = group.parts
-                                    .map((item: any) => item.part.text)
-                                    .join("\n\n");
-                                  const firstPart = group.parts[0].part;
-                                  const isStreaming = group.parts.some(
-                                    (item: any) =>
-                                      item.part.state === "streaming" ||
-                                      status === "streaming"
-                                  );
-
-                                  return (
-                                    <ReasoningComponent
-                                      key={`reasoning-group-${groupIndex}`}
-                                      part={{
-                                        ...firstPart,
-                                        text: combinedText,
-                                      }}
-                                      messageId={message.id}
-                                      index={groupIndex}
-                                      status={
-                                        isStreaming ? "streaming" : status
-                                      }
-                                      expandedTools={expandedTools}
-                                      toggleToolExpansion={toggleToolExpansion}
-                                    />
-                                  );
-                                } else {
-                                  // Render single part normally
-                                  const { part, index } = group;
-
-                                  switch (part.type) {
-                                    // Text parts
-                                    case "text":
-                                      return (
-                                        <div
-                                          key={index}
-                                          className="prose prose-sm max-w-none dark:prose-invert"
-                                        >
-                                          {(() => {
-                                            // Collect citations from tool results that appear BEFORE this text part
-                                            const citations: CitationMap = {};
-                                            let citationNumber = 1;
-
-                                            // Find the current part's index
-                                            const currentPartIndex =
-                                              message.parts.findIndex(
-                                                (p: any) => p === part
-                                              );
-
-                                            // Look for tool results that come BEFORE this text part
-                                            // This ensures citations match the order the AI references them
-                                            for (
-                                              let i = 0;
-                                              i < currentPartIndex;
-                                              i++
-                                            ) {
-                                              const p = message.parts[i];
-
-                                              // Check for search tool results (financial, web, wiley, and healthcare tools)
-                                              if (
-                                                (p.type ===
-                                                  "tool-financialSearch" ||
-                                                  p.type === "tool-webSearch" ||
-                                                  p.type ===
-                                                    "tool-wileySearch" ||
-                                                  p.type ===
-                                                    "tool-clinicalTrialsSearch" ||
-                                                  p.type ===
-                                                    "tool-getClinicalTrialDetails" ||
-                                                  p.type ===
-                                                    "tool-drugInformationSearch" ||
-                                                  p.type ===
-                                                    "tool-biomedicalLiteratureSearch" ||
-                                                  p.type ===
-                                                    "tool-pharmaCompanyAnalysis" ||
-                                                  p.type ===
-                                                    "tool-comprehensiveHealthcareSearch") &&
-                                                p.state ===
-                                                  "output-available" &&
-                                                p.output
-                                              ) {
-                                                try {
-                                                  const output =
-                                                    typeof p.output === "string"
-                                                      ? JSON.parse(p.output)
-                                                      : (p as any).output; // lol sorry
-
-                                                  // Check if this is a search result with multiple items
-                                                  if (
-                                                    output.results &&
-                                                    Array.isArray(
-                                                      output.results
-                                                    )
-                                                  ) {
-                                                    output.results.forEach(
-                                                      (item: any) => {
-                                                        const key = `[${citationNumber}]`;
-                                                        // Ensure description is a string, not an object
-                                                        let description =
-                                                          item.content ||
-                                                          item.summary ||
-                                                          item.description ||
-                                                          "";
-                                                        if (
-                                                          typeof description ===
-                                                          "object"
-                                                        ) {
-                                                          description =
-                                                            JSON.stringify(
-                                                              description
-                                                            );
-                                                        }
-                                                        citations[key] = [
-                                                          {
-                                                            number:
-                                                              citationNumber.toString(),
-                                                            title:
-                                                              item.title ||
-                                                              `Source ${citationNumber}`,
-                                                            url: item.url || "",
-                                                            description:
-                                                              description,
-                                                            source: item.source,
-                                                            date: item.date,
-                                                            authors:
-                                                              Array.isArray(
-                                                                item.authors
-                                                              )
-                                                                ? item.authors
-                                                                : [],
-                                                            doi: item.doi,
-                                                            relevanceScore:
-                                                              item.relevanceScore ||
-                                                              item.relevance_score,
-                                                            toolType:
-                                                              p.type ===
-                                                              "tool-financialSearch"
-                                                                ? "financial"
-                                                                : p.type ===
-                                                                  "tool-wileySearch"
-                                                                ? "wiley"
-                                                                : p.type ===
-                                                                  "tool-clinicalTrialsSearch"
-                                                                ? "clinical-trials"
-                                                                : p.type ===
-                                                                  "tool-getClinicalTrialDetails"
-                                                                ? "clinical-trials"
-                                                                : p.type ===
-                                                                  "tool-drugInformationSearch"
-                                                                ? "drug-info"
-                                                                : p.type ===
-                                                                  "tool-biomedicalLiteratureSearch"
-                                                                ? "biomedical"
-                                                                : p.type ===
-                                                                  "tool-pharmaCompanyAnalysis"
-                                                                ? "pharma"
-                                                                : p.type ===
-                                                                  "tool-comprehensiveHealthcareSearch"
-                                                                ? "healthcare"
-                                                                : "web",
-                                                          },
-                                                        ];
-                                                        citationNumber++;
-
-                                                        // Log each citation as it's added
-                                                        console.log(
-                                                          `[Citations] Added citation [${
-                                                            citationNumber - 1
-                                                          }]:`,
-                                                          item.title ||
-                                                            "Untitled"
-                                                        );
-                                                      }
-                                                    );
-                                                  }
-                                                } catch (error) {
-                                                  console.error(
-                                                    "Error extracting citations from tool:",
-                                                    p.type,
-                                                    error
-                                                  );
-                                                }
-                                              }
-                                            }
-
-                                            // Debug: Log citations collected
-                                            if (
-                                              Object.keys(citations).length > 0
-                                            ) {
-                                              console.log(
-                                                "[Citations] Total citations collected for text part:",
-                                                Object.keys(citations).length,
-                                                citations
-                                              );
-                                            }
-
-                                            // If we have citations, use the citation renderer, otherwise use regular markdown
-                                            if (
-                                              Object.keys(citations).length > 0
-                                            ) {
-                                              return (
-                                                <CitationTextRenderer
-                                                  text={part.text}
-                                                  citations={citations}
-                                                />
-                                              );
-                                            } else {
-                                              return (
-                                                <MemoizedMarkdown
-                                                  text={part.text}
-                                                />
-                                              );
-                                            }
-                                          })()}
-                                        </div>
-                                      );
-
-                                    // Skip individual reasoning parts as they're handled in groups
-                                    case "reasoning":
-                                      return null;
-
-                                    // Python Executor Tool
-                                    case "tool-codeExecution": {
-                                      const callId = part.toolCallId;
-                                      const isExpanded =
-                                        expandedTools.has(callId);
-
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
-                                                <span className="text-lg">
-                                                  🐍
-                                                </span>
-                                                <span className="font-medium">
-                                                  Python Executor
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-blue-600 dark:text-blue-300">
-                                                Preparing code execution...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400 mb-2">
-                                                <span className="text-lg">
-                                                  🐍
-                                                </span>
-                                                <span className="font-medium">
-                                                  Python Executor
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-blue-600 dark:text-blue-300">
-                                                <div className="bg-blue-100 dark:bg-blue-800/30 p-2 rounded">
-                                                  <div className="flex items-center justify-between mb-2">
-                                                    <span className="font-medium">
-                                                      {part.input.description ||
-                                                        "Executing Python code..."}
-                                                    </span>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      onClick={() =>
-                                                        toggleToolExpansion(
-                                                          callId
-                                                        )
-                                                      }
-                                                      className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200"
-                                                    >
-                                                      {isExpanded ? (
-                                                        <ChevronUp className="h-3 w-3" />
-                                                      ) : (
-                                                        <ChevronDown className="h-3 w-3" />
-                                                      )}
-                                                    </Button>
-                                                  </div>
-                                                  {isExpanded ? (
-                                                    <pre className="font-mono text-xs whitespace-pre-wrap bg-white dark:bg-gray-800 p-2 rounded border max-h-48 overflow-y-auto">
-                                                      {part.input.code}
-                                                    </pre>
-                                                  ) : (
-                                                    <div className="font-mono text-xs text-blue-700 dark:text-blue-300 line-clamp-2">
-                                                      {
-                                                        part.input.code.split(
-                                                          "\n"
-                                                        )[0]
-                                                      }
-                                                      ...
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-green-700 dark:text-green-400 mb-2">
-                                                <CheckCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Python Execution Result
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-green-600 dark:text-green-300">
-                                                <div className="prose prose-sm max-w-none dark:prose-invert">
-                                                  <MemoizedMarkdown
-                                                    text={part.output}
-                                                  />
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Python Execution Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Financial Search Tool
-                                    case "tool-financialSearch": {
-                                      const callId = part.toolCallId;
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
-                                                <span className="text-lg">
-                                                  🔍
-                                                </span>
-                                                <span className="font-medium">
-                                                  Financial Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-purple-600 dark:text-purple-300">
-                                                Preparing financial data
-                                                search...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
-                                                <span className="text-lg">
-                                                  🔍
-                                                </span>
-                                                <span className="font-medium">
-                                                  Financial Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-purple-600 dark:text-purple-300">
-                                                <div className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded">
-                                                  <div className="font-mono text-xs">
-                                                    Query: &quot;
-                                                    {part.input.query}
-                                                    &quot;
-                                                    {part.input.dataType &&
-                                                      part.input.dataType !==
-                                                        "auto" && (
-                                                        <>
-                                                          <br />
-                                                          Type:{" "}
-                                                          {part.input.dataType}
-                                                        </>
-                                                      )}
-                                                    {part.input.maxResults && (
-                                                      <>
-                                                        <br />
-                                                        Max Results:{" "}
-                                                        {part.input.maxResults}
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                <div className="mt-2 text-xs">
-                                                  Searching financial databases
-                                                  and news sources...
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          const financialResults =
-                                            extractSearchResults(part.output);
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-3 sm:p-4"
-                                            >
-                                              <div className="flex items-center justify-between gap-3 mb-4">
-                                                <div className="flex items-center gap-2 text-green-700 dark:text-green-400">
-                                                  <CheckCircle className="h-4 w-4" />
-                                                  <span className="font-medium">
-                                                    Financial Search Results
-                                                  </span>
-                                                  <span className="text-xs text-green-600 dark:text-green-300">
-                                                    ({financialResults.length}{" "}
-                                                    results)
-                                                  </span>
-                                                </div>
-                                                {part.input?.query && (
-                                                  <div
-                                                    className="text-xs font-mono text-green-700 dark:text-green-300 bg-green-50 dark:bg-green-900/20 px-3 py-1 rounded border border-green-200 dark:border-green-700 max-w-[60%] truncate"
-                                                    title={part.input.query}
-                                                  >
-                                                    {part.input.query}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <SearchResultsCarousel
-                                                results={financialResults}
-                                                type="financial"
-                                                toolName="financialSearch"
-                                                messageId={message.id}
-                                              />
-                                            </div>
-                                          );
-                                        case "output-error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Financial Search Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Web Search Tool
-                                    case "tool-webSearch": {
-                                      const callId = part.toolCallId;
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 mb-2">
-                                                <span className="text-lg">
-                                                  🌐
-                                                </span>
-                                                <span className="font-medium">
-                                                  Web Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-cyan-600 dark:text-cyan-300">
-                                                Preparing web search...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-cyan-50 dark:bg-cyan-900/20 border border-cyan-200 dark:border-cyan-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-cyan-700 dark:text-cyan-400 mb-2">
-                                                <span className="text-lg">
-                                                  🌐
-                                                </span>
-                                                <span className="font-medium">
-                                                  Web Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-cyan-600 dark:text-cyan-300">
-                                                <div className="bg-cyan-100 dark:bg-cyan-800/30 p-2 rounded">
-                                                  <div className="text-xs">
-                                                    Searching for: &quot;
-                                                    {part.input.query}&quot;
-                                                  </div>
-                                                </div>
-                                                <div className="mt-2 text-xs">
-                                                  Searching the world wide
-                                                  web...
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          const webResults =
-                                            extractSearchResults(part.output);
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3 sm:p-4"
-                                            >
-                                              <div className="flex items-center justify-between gap-3 mb-4">
-                                                <div className="flex items-center gap-2 text-blue-700 dark:text-blue-400">
-                                                  <CheckCircle className="h-4 w-4" />
-                                                  <span className="font-medium">
-                                                    Web Search Results
-                                                  </span>
-                                                  <span className="text-xs text-blue-600 dark:text-blue-300">
-                                                    ({webResults.length}{" "}
-                                                    results)
-                                                  </span>
-                                                </div>
-                                                {part.input?.query && (
-                                                  <div
-                                                    className="text-xs font-mono text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/20 px-3 py-1 rounded border border-blue-200 dark:border-blue-700 max-w-[60%] truncate"
-                                                    title={part.input.query}
-                                                  >
-                                                    {part.input.query}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <SearchResultsCarousel
-                                                results={webResults}
-                                                type="web"
-                                                toolName="webSearch"
-                                                messageId={message.id}
-                                              />
-                                            </div>
-                                          );
-                                        case "output-error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Web Search Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Wiley Search Tool
-                                    case "tool-wileySearch": {
-                                      const callId = part.toolCallId;
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
-                                                <span className="text-lg">
-                                                  📚
-                                                </span>
-                                                <span className="font-medium">
-                                                  Wiley Academic Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-amber-600 dark:text-amber-300">
-                                                Searching academic journals and
-                                                textbooks...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400 mb-2">
-                                                <span className="text-lg">
-                                                  📚
-                                                </span>
-                                                <span className="font-medium">
-                                                  Wiley Academic Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-amber-600 dark:text-amber-300">
-                                                <div className="font-medium">
-                                                  Searching for: &quot;
-                                                  {part.input.query}&quot;
-                                                </div>
-                                              </div>
-                                              <div className="mt-2 text-xs">
-                                                Searching academic finance
-                                                literature...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          const wileyResults =
-                                            extractSearchResults(part.output);
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3 sm:p-4"
-                                            >
-                                              <div className="flex items-center justify-between gap-3 mb-4">
-                                                <div className="flex items-center gap-2 text-amber-700 dark:text-amber-400">
-                                                  <CheckCircle className="h-4 w-4" />
-                                                  <span className="font-medium">
-                                                    Wiley Academic Results
-                                                  </span>
-                                                  <span className="text-xs text-amber-600 dark:text-amber-300">
-                                                    ({wileyResults.length}{" "}
-                                                    results)
-                                                  </span>
-                                                </div>
-                                                {part.input?.query && (
-                                                  <div className="text-xs text-amber-600 dark:text-amber-400 bg-amber-100 dark:bg-amber-800/30 px-2 py-1 rounded">
-                                                    &quot;{part.input.query}
-                                                    &quot;
-                                                  </div>
-                                                )}
-                                              </div>
-                                              <SearchResultsCarousel
-                                                results={wileyResults}
-                                                type="wiley"
-                                                toolName="wileySearch"
-                                                messageId={message.id}
-                                              />
-                                            </div>
-                                          );
-                                        case "output-error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Wiley Search Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Chart Creation Tool
-                                    case "tool-createChart": {
-                                      const callId = part.toolCallId;
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-2">
-                                                <span className="text-lg">
-                                                  📈
-                                                </span>
-                                                <span className="font-medium">
-                                                  Creating Chart
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-emerald-600 dark:text-emerald-300">
-                                                Preparing chart visualization...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-emerald-700 dark:text-emerald-400 mb-2">
-                                                <span className="text-lg">
-                                                  📈
-                                                </span>
-                                                <span className="font-medium">
-                                                  Creating Chart
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-emerald-600 dark:text-emerald-300">
-                                                <div className="bg-emerald-100 dark:bg-emerald-800/30 p-2 rounded">
-                                                  <div className="font-mono text-xs">
-                                                    Creating {part.input.type}{" "}
-                                                    chart: &quot;
-                                                    {part.input.title}
-                                                    &quot;
-                                                    <br />
-                                                    Data Series:{" "}
-                                                    {part.input.dataSeries
-                                                      ?.length || 0}
-                                                  </div>
-                                                </div>
-                                                <div className="mt-2 text-xs">
-                                                  Generating interactive
-                                                  visualization...
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          // Charts are expanded by default, collapsed only if explicitly set
-                                          const isChartExpanded =
-                                            !expandedTools.has(
-                                              `collapsed-${callId}`
-                                            );
-                                          return (
-                                            <div key={callId} className="mt-2">
-                                              {isChartExpanded ? (
-                                                <div className="relative">
-                                                  <Button
-                                                    variant="ghost"
-                                                    size="sm"
-                                                    onClick={() =>
-                                                      toggleChartExpansion(
-                                                        callId
-                                                      )
-                                                    }
-                                                    className="absolute right-2 top-2 z-10 h-6 w-6 p-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm border border-gray-200 dark:border-gray-700 rounded-full shadow-sm"
-                                                  >
-                                                    <ChevronUp className="h-4 w-4" />
-                                                  </Button>
-                                                  <FinancialChart
-                                                    {...part.output}
-                                                  />
-                                                </div>
-                                              ) : (
-                                                <div className="bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-xl p-4">
-                                                  <div className="flex items-center justify-between mb-2">
-                                                    <div className="flex items-center gap-2 text-gray-700 dark:text-gray-300">
-                                                      <span className="text-lg">
-                                                        📈
-                                                      </span>
-                                                      <span className="font-medium">
-                                                        {part.output.title}
-                                                      </span>
-                                                    </div>
-                                                    <Button
-                                                      variant="ghost"
-                                                      size="sm"
-                                                      onClick={() =>
-                                                        toggleChartExpansion(
-                                                          callId
-                                                        )
-                                                      }
-                                                      className="h-6 w-6 p-0 text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
-                                                    >
-                                                      <ChevronDown className="h-4 w-4" />
-                                                    </Button>
-                                                  </div>
-                                                  <div className="text-sm text-gray-500 dark:text-gray-400 space-y-1">
-                                                    <div>
-                                                      Chart Type:{" "}
-                                                      {part.output.chartType}
-                                                    </div>
-                                                    <div>
-                                                      Data Series:{" "}
-                                                      {part.output.dataSeries
-                                                        ?.length || 0}
-                                                    </div>
-                                                    {part.output
-                                                      .description && (
-                                                      <div className="text-xs">
-                                                        {
-                                                          part.output
-                                                            .description
-                                                        }
-                                                      </div>
-                                                    )}
-                                                  </div>
-                                                  <div className="text-center mt-3">
-                                                    <button
-                                                      onClick={() =>
-                                                        toggleChartExpansion(
-                                                          callId
-                                                        )
-                                                      }
-                                                      className="text-xs text-blue-600 hover:text-blue-800 dark:text-blue-400 dark:hover:text-blue-200 underline"
-                                                    >
-                                                      View Chart
-                                                    </button>
-                                                  </div>
-                                                </div>
-                                              )}
-                                            </div>
-                                          );
-                                        case "output-error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <AlertCircle className="h-4 w-4" />
-                                                <span className="font-medium">
-                                                  Chart Creation Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Clinical Trials Search Tool
-                                    case "tool-clinicalTrialsSearch":
-                                    // Get Clinical Trial Details Tool
-                                    case "tool-getClinicalTrialDetails":
-                                    // Drug Information Search Tool
-                                    case "tool-drugInformationSearch":
-                                    // Biomedical Literature Search Tool
-                                    case "tool-biomedicalLiteratureSearch":
-                                    // Pharma Company Analysis Tool
-                                    case "tool-pharmaCompanyAnalysis":
-                                    // Comprehensive Healthcare Search Tool
-                                    case "tool-comprehensiveHealthcareSearch": {
-                                      const callId = part.toolCallId;
-                                      switch (part.state) {
-                                        case "input-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
-                                                <span className="text-lg">
-                                                  🧬
-                                                </span>
-                                                <span className="font-medium">
-                                                  {part.type ===
-                                                    "tool-clinicalTrialsSearch" &&
-                                                    "Searching Clinical Trials"}
-                                                  {part.type ===
-                                                    "tool-getClinicalTrialDetails" &&
-                                                    "Fetching Clinical Trial Details"}
-                                                  {part.type ===
-                                                    "tool-drugInformationSearch" &&
-                                                    "Searching Drug Information"}
-                                                  {part.type ===
-                                                    "tool-biomedicalLiteratureSearch" &&
-                                                    "Searching Biomedical Literature"}
-                                                  {part.type ===
-                                                    "tool-pharmaCompanyAnalysis" &&
-                                                    "Analyzing Pharmaceutical Company"}
-                                                  {part.type ===
-                                                    "tool-comprehensiveHealthcareSearch" &&
-                                                    "Comprehensive Healthcare Search"}
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-indigo-600 dark:text-indigo-300">
-                                                Searching healthcare
-                                                databases...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "input-available":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
-                                                <span className="text-lg">
-                                                  🧬
-                                                </span>
-                                                <span className="font-medium">
-                                                  {part.type ===
-                                                    "tool-clinicalTrialsSearch" &&
-                                                    "Searching Clinical Trials"}
-                                                  {part.type ===
-                                                    "tool-getClinicalTrialDetails" &&
-                                                    "Fetching Clinical Trial Details"}
-                                                  {part.type ===
-                                                    "tool-drugInformationSearch" &&
-                                                    "Searching Drug Information"}
-                                                  {part.type ===
-                                                    "tool-biomedicalLiteratureSearch" &&
-                                                    "Searching Biomedical Literature"}
-                                                  {part.type ===
-                                                    "tool-pharmaCompanyAnalysis" &&
-                                                    "Analyzing Pharmaceutical Company"}
-                                                  {part.type ===
-                                                    "tool-comprehensiveHealthcareSearch" &&
-                                                    "Comprehensive Healthcare Search"}
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-indigo-600 dark:text-indigo-300">
-                                                <div className="bg-indigo-100 dark:bg-indigo-800/30 p-2 rounded">
-                                                  <div className="font-mono text-xs">
-                                                    {part.type ===
-                                                    "tool-getClinicalTrialDetails" ? (
-                                                      <>
-                                                        NCT ID:{" "}
-                                                        {part.input.nctId ||
-                                                          "N/A"}
-                                                      </>
-                                                    ) : (
-                                                      <>
-                                                        Query: &quot;
-                                                        {part.input.query ||
-                                                          "N/A"}
-                                                        &quot;
-                                                        {part.input
-                                                          .maxResults && (
-                                                          <>
-                                                            <br />
-                                                            Max Results:{" "}
-                                                            {
-                                                              part.input
-                                                                .maxResults
-                                                            }
-                                                          </>
-                                                        )}
-                                                      </>
-                                                    )}
-                                                  </div>
-                                                </div>
-                                                <div className="mt-2 text-xs">
-                                                  Retrieving healthcare data
-                                                  from specialized sources...
-                                                </div>
-                                              </div>
-                                            </div>
-                                          );
-                                        case "output-available":
-                                          // Special handling for getClinicalTrialDetails
-                                          if (
-                                            part.type ===
-                                            "tool-getClinicalTrialDetails"
-                                          ) {
-                                            try {
-                                              const detailData = JSON.parse(
-                                                part.output
-                                              );
-
-                                              // Convert single trial detail to array format for display
-                                              const detailResults =
-                                                detailData.found &&
-                                                detailData.data
-                                                  ? [
-                                                      {
-                                                        id:
-                                                          detailData.nctId ||
-                                                          detailData.data
-                                                            .nct_id,
-                                                        title:
-                                                          detailData.title ||
-                                                          detailData.data
-                                                            .brief_title ||
-                                                          detailData.data
-                                                            .official_title ||
-                                                          "Clinical Trial",
-                                                        summary:
-                                                          detailData.data
-                                                            .brief_summary ||
-                                                          "No summary available",
-                                                        source:
-                                                          "ClinicalTrials.gov",
-                                                        date:
-                                                          detailData.data
-                                                            .start_date || "",
-                                                        url:
-                                                          detailData.url || "",
-                                                        fullContent:
-                                                          JSON.stringify(
-                                                            detailData.data
-                                                          ),
-                                                        dataType:
-                                                          "clinical_trials",
-                                                        nctId:
-                                                          detailData.nctId ||
-                                                          detailData.data
-                                                            .nct_id,
-                                                        status:
-                                                          detailData.data
-                                                            .overall_status,
-                                                        phase:
-                                                          detailData.data
-                                                            .phases,
-                                                        relevanceScore: 1,
-                                                      },
-                                                    ]
-                                                  : [];
-
-                                              return (
-                                                <div
-                                                  key={callId}
-                                                  className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 sm:p-4"
-                                                >
-                                                  <div className="flex items-center justify-between gap-3 mb-4">
-                                                    <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
-                                                      <CheckCircle className="h-4 w-4" />
-                                                      <span className="font-medium">
-                                                        Clinical Trial Details
-                                                      </span>
-                                                    </div>
-                                                    {detailData.found && (
-                                                      <span className="text-xs text-indigo-600 dark:text-indigo-400">
-                                                        {detailData.nctId}
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                  {part.input?.query && (
-                                                    <div className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/30 px-2 py-1 rounded mb-2">
-                                                      &quot;{part.input.query}
-                                                      &quot;
-                                                    </div>
-                                                  )}
-                                                  {detailResults.length > 0 ? (
-                                                    <SearchResultsCarousel
-                                                      results={detailResults}
-                                                      type="healthcare"
-                                                      toolName="getClinicalTrialDetails"
-                                                      messageId={message.id}
-                                                    />
-                                                  ) : (
-                                                    <div className="text-sm text-gray-500">
-                                                      {detailData.message ||
-                                                        "No trial found"}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                              );
-                                            } catch (e) {
-                                              console.error(
-                                                "Failed to parse clinical trial details:",
-                                                e
-                                              );
-                                            }
-                                          }
-
-                                          // Regular handling for other healthcare tools
-                                          const healthcareResults =
-                                            extractSearchResults(part.output);
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded-lg p-3 sm:p-4"
-                                            >
-                                              <div className="flex items-center justify-between gap-3 mb-4">
-                                                <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400">
-                                                  <CheckCircle className="h-4 w-4" />
-                                                  <span className="font-medium">
-                                                    {part.type ===
-                                                      "tool-clinicalTrialsSearch" &&
-                                                      "Clinical Trials Results"}
-                                                    {part.type ===
-                                                      "tool-drugInformationSearch" &&
-                                                      "Drug Information Results"}
-                                                    {part.type ===
-                                                      "tool-biomedicalLiteratureSearch" &&
-                                                      "Biomedical Literature Results"}
-                                                    {part.type ===
-                                                      "tool-pharmaCompanyAnalysis" &&
-                                                      "Pharmaceutical Analysis Results"}
-                                                    {part.type ===
-                                                      "tool-comprehensiveHealthcareSearch" &&
-                                                      "Healthcare Search Results"}
-                                                  </span>
-                                                </div>
-                                                {healthcareResults.length >
-                                                  0 && (
-                                                  <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400">
-                                                    <span>
-                                                      {healthcareResults.length}{" "}
-                                                      results
-                                                    </span>
-                                                    {healthcareResults.some(
-                                                      (r: any) =>
-                                                        r.dataType ===
-                                                        "clinical_trials"
-                                                    ) && (
-                                                      <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
-                                                        Clinical Trials
-                                                      </span>
-                                                    )}
-                                                    {healthcareResults.some(
-                                                      (r: any) =>
-                                                        r.dataType ===
-                                                        "drug_labels"
-                                                    ) && (
-                                                      <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
-                                                        Drug Labels
-                                                      </span>
-                                                    )}
-                                                    {healthcareResults.some(
-                                                      (r: any) =>
-                                                        r.dataType ===
-                                                        "research_papers"
-                                                    ) && (
-                                                      <span className="px-2 py-0.5 bg-indigo-100 dark:bg-indigo-800/30 rounded">
-                                                        Research Papers
-                                                      </span>
-                                                    )}
-                                                  </div>
-                                                )}
-                                              </div>
-                                              {part.input?.query && (
-                                                <div className="text-xs text-indigo-600 dark:text-indigo-400 bg-indigo-100 dark:bg-indigo-800/30 px-2 py-1 rounded mb-2">
-                                                  &quot;{part.input.query}&quot;
-                                                </div>
-                                              )}
-                                              <SearchResultsCarousel
-                                                results={healthcareResults}
-                                                type="healthcare"
-                                                toolName={
-                                                  part.type ===
-                                                  "tool-clinicalTrialsSearch"
-                                                    ? "clinicalTrialsSearch"
-                                                    : part.type ===
-                                                      "tool-drugInformationSearch"
-                                                    ? "drugInformationSearch"
-                                                    : part.type ===
-                                                      "tool-biomedicalLiteratureSearch"
-                                                    ? "biomedicalLiteratureSearch"
-                                                    : part.type ===
-                                                      "tool-pharmaCompanyAnalysis"
-                                                    ? "pharmaCompanyAnalysis"
-                                                    : "comprehensiveHealthcareSearch"
-                                                }
-                                                messageId={message.id}
-                                              />
-                                            </div>
-                                          );
-                                        case "output-streaming":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-200 dark:border-indigo-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-400 mb-2">
-                                                <span className="text-lg">
-                                                  🧬
-                                                </span>
-                                                <span className="font-medium">
-                                                  Healthcare Search
-                                                </span>
-                                                <Clock className="h-3 w-3 animate-spin" />
-                                              </div>
-                                              <div className="text-sm text-indigo-600 dark:text-indigo-300">
-                                                Retrieving results...
-                                              </div>
-                                            </div>
-                                          );
-                                        case "error":
-                                          return (
-                                            <div
-                                              key={callId}
-                                              className="mt-2 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded p-2 sm:p-3"
-                                            >
-                                              <div className="flex items-center gap-2 text-red-700 dark:text-red-400 mb-2">
-                                                <span className="text-lg">
-                                                  ❌
-                                                </span>
-                                                <span className="font-medium">
-                                                  Healthcare Search Error
-                                                </span>
-                                              </div>
-                                              <div className="text-sm text-red-600 dark:text-red-300">
-                                                {part.errorText}
-                                              </div>
-                                            </div>
-                                          );
-                                      }
-                                      break;
-                                    }
-
-                                    // Generic dynamic tool fallback (for future tools)
-                                    case "dynamic-tool":
-                                      return (
-                                        <div
-                                          key={index}
-                                          className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3"
-                                        >
-                                          <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
-                                            <Wrench className="h-4 w-4" />
-                                            <span className="font-medium">
-                                              Tool: {part.toolName}
-                                            </span>
-                                          </div>
-                                          <div className="text-sm text-purple-600 dark:text-purple-300">
-                                            {part.state ===
-                                              "input-streaming" && (
-                                              <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
-                                                {JSON.stringify(
-                                                  part.input,
-                                                  null,
-                                                  2
-                                                )}
-                                              </pre>
-                                            )}
-                                            {part.state ===
-                                              "output-available" && (
-                                              <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
-                                                {JSON.stringify(
-                                                  part.output,
-                                                  null,
-                                                  2
-                                                )}
-                                              </pre>
-                                            )}
-                                            {part.state === "output-error" && (
-                                              <div className="text-red-600 dark:text-red-300">
-                                                Error: {part.errorText}
-                                              </div>
-                                            )}
-                                          </div>
-                                        </div>
-                                      );
-
-                                    default:
-                                      return null;
-                                  }
-                                }
-                              });
-                            })()}
-                          </div>
-                        )}
-
-                        {/* Message Actions */}
-                        {message.role === "assistant" && (
-                          <div className="flex justify-end gap-1 mt-3 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {messages[messages.length - 1]?.id === message.id &&
-                              canRegenerate && (
-                                <Button
-                                  onClick={() => {
-                                    track("Message Regenerated", {
-                                      messageCount: messages.length,
-                                      lastMessageRole:
-                                        messages[messages.length - 1]?.role,
-                                    });
-                                    regenerate();
-                                  }}
-                                  variant="ghost"
-                                  size="sm"
-                                  disabled={
-                                    status !== "ready" && status !== "error"
-                                  }
-                                  className="h-7 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                                >
-                                  <RotateCcw className="h-3 w-3" />
-                                </Button>
-                              )}
-
-                            {!isLoading && (
-                              <Button
-                                onClick={() =>
-                                  copyToClipboard(getMessageText(message))
-                                }
-                                variant="ghost"
-                                size="sm"
-                                className="h-7 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
-                              >
-                                <Copy className="h-3 w-3" />
-                              </Button>
-                            )}
-                          </div>
-                        )}
+                    <div className="flex flex-col items-center space-y-3">
+                      <div className="flex items-center justify-center space-x-4">
+                        <SocialLinks />
                       </div>
-                    )}
-                  </motion.div>
-                );
-              })}
-            </AnimatePresence>
-            {virtualizationEnabled && (
-              <>
-                <div
-                  style={{
-                    height: Math.max(0, visibleRange.start * avgRowHeight),
-                  }}
-                />
-                <div
-                  style={{
-                    height: Math.max(
-                      0,
-                      (deferredMessages.length - visibleRange.end) *
-                        avgRowHeight
-                    ),
-                  }}
-                />
-              </>
-            )}
-
-            {/* Coffee Loading Message */}
-            <AnimatePresence>
-              {status === "submitted" &&
-                messages.length > 0 &&
-                messages[messages.length - 1]?.role === "user" && (
-                  <motion.div
-                    className="mb-6"
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -10 }}
-                    transition={{ duration: 0.3, ease: "easeOut" }}
-                  >
-                    <div className="flex items-start gap-2">
-                      <div className="text-amber-600 dark:text-amber-400 text-lg mt-0.5">
-                        ☕
-                      </div>
-                      <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-700 rounded-xl px-3 py-2 max-w-xs">
-                        <div className="text-amber-700 dark:text-amber-300 text-sm">
-                          Just grabbing a coffee and contemplating the meaning
-                          of life... ☕️
-                        </div>
-                      </div>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
+                        Not financial advice.
+                      </p>
                     </div>
                   </motion.div>
-                )}
+                </motion.div>
+              )}
             </AnimatePresence>
-
-            <div ref={messagesEndRef} />
-            <div ref={bottomAnchorRef} className="h-px w-full" />
           </div>
 
-          {/* Gradient fade above input form */}
-          <AnimatePresence>
-            {(isFormAtBottom || isMobile) && (
-              <>
-                <motion.div
-                  className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl h-36 pointer-events-none z-45"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  transition={{ duration: 0.3, ease: "easeOut" }}
-                >
-                  <div
-                    className="dark:hidden absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to top, rgba(255,255,255,1) 0%, rgba(255,255,255,0.98) 30%, rgba(255,255,255,0.8) 60%, rgba(255,255,255,0) 100%)",
-                    }}
-                  />
-                  <div
-                    className="hidden dark:block absolute inset-0"
-                    style={{
-                      background:
-                        "linear-gradient(to top, rgb(3 7 18) 0%, rgb(3 7 18 / 0.98) 30%, rgb(3 7 18 / 0.8) 60%, transparent 100%)",
-                    }}
-                  />
-                </motion.div>
-              </>
-            )}
-          </AnimatePresence>
+          <Dialog open={showLibraryCard} onOpenChange={setShowLibraryCard}>
+            <DialogContent className="sm:max-w-2xl">
+              <DialogHeader>
+                <DialogTitle>Saved Library</DialogTitle>
+                <DialogDescription>
+                  Select a collection to review the answers you&apos;ve saved.
+                </DialogDescription>
+              </DialogHeader>
 
-          {/* Error Display */}
-          {error && (
-            <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4">
-              <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
-                <AlertCircle className="h-4 w-4" />
-                <span className="font-medium">
-                  {error.message?.includes("PAYMENT_REQUIRED")
-                    ? "Payment Setup Required"
-                    : "Something went wrong"}
-                </span>
-              </div>
-              <p className="text-red-600 dark:text-red-400 text-sm mt-1">
-                {error.message?.includes("PAYMENT_REQUIRED")
-                  ? "You need to set up a payment method to use the pay-per-use plan. You only pay for what you use."
-                  : "Please check your API keys and try again."}
-              </p>
-              <Button
-                onClick={() => {
-                  if (error.message?.includes("PAYMENT_REQUIRED")) {
-                    // Redirect to subscription setup
-                    const url = `/api/checkout?plan=pay_per_use&redirect=${encodeURIComponent(
-                      window.location.href
-                    )}`;
-                    window.location.href = url;
-                  } else {
-                    window.location.reload();
-                  }
-                }}
-                variant="outline"
-                size="sm"
-                className="mt-2 text-red-700 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20"
-              >
-                {error.message?.includes("PAYMENT_REQUIRED") ? (
-                  <>
-                    <span className="mr-1">💳</span>
-                    Setup Payment
-                  </>
-                ) : (
-                  <>
-                    <RotateCcw className="h-3 w-3 mr-1" />
-                    Retry
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
-
-          {/* Input Form at bottom */}
-          <AnimatePresence>
-            {(isFormAtBottom || isMobile) && (
-              <motion.div
-                className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl px-3 sm:px-6 pt-4 sm:pt-5 pb-6 sm:pb-7 z-50"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: 20 }}
-                transition={{ duration: 0.3, ease: "easeOut" }}
-              >
-                <form
-                  onSubmit={handleSubmit}
-                  className="max-w-3xl mx-auto space-y-2"
-                >
-                  {showFileDropzone && (
-                    <div className="rounded-2xl border border-dashed border-gray-300 bg-white/80 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-900/40">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <p className="font-medium text-sm text-gray-800 dark:text-gray-200">
-                            Attach files &amp; media
-                          </p>
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            Drop files below or click to browse. We&apos;ll add
-                            them to the next answer.
-                          </p>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={closeFileDropzone}
-                          className="h-7 w-7 p-0 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-100"
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      <div className="mt-3">
-                        <Dropzone
-                          maxFiles={5}
-                          accept={{
-                            "application/pdf": [".pdf"],
-                            "image/*": [
-                              ".png",
-                              ".jpg",
-                              ".jpeg",
-                              ".gif",
-                              ".bmp",
-                              ".webp",
-                            ],
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                              [".docx"],
-                            "application/json": [".json"],
-                          }}
-                          onDrop={handleFileDrop}
-                          onError={(error) => console.error(error)}
-                          src={dropzoneFiles}
-                          className="w-full border-2 border-dashed border-gray-300 bg-transparent px-4 py-6 hover:border-gray-400 dark:border-gray-700 dark:hover:border-gray-600"
-                        >
-                          <DropzoneEmptyState />
-                          <DropzoneContent />
-                        </Dropzone>
-                      </div>
-                    </div>
-                  )}
-                  {Object.keys(uploadingFiles).length > 0 && (
-                    <div className="space-y-2">
-                      {Object.entries(uploadingFiles).map(
-                        ([fileId, fileUpload]) => (
-                          <div
-                            key={fileId}
-                            className="rounded-lg border border-blue-200 bg-blue-50/80 px-3 py-2 text-blue-800 shadow-sm dark:border-blue-800/70 dark:bg-blue-900/20 dark:text-blue-200"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2">
-                                <div className="h-3 w-3 animate-spin rounded-full border-2 border-blue-600 border-t-transparent dark:border-blue-400"></div>
-                                <span className="text-xs font-medium">
-                                  Uploading and processing:{" "}
-                                  {fileUpload.fileName}
-                                </span>
-                              </div>
-                              <button
-                                onClick={() => cancelFileUpload(fileId)}
-                                className="flex h-5 w-5 items-center justify-center rounded-full text-blue-600 hover:bg-blue-100 dark:text-blue-300 dark:hover:bg-blue-800/30"
-                                title="Cancel upload"
-                              >
-                                <svg
-                                  className="h-3 w-3"
-                                  fill="none"
-                                  stroke="currentColor"
-                                  viewBox="0 0 24 24"
-                                >
-                                  <path
-                                    strokeLinecap="round"
-                                    strokeLinejoin="round"
-                                    strokeWidth={2}
-                                    d="M6 18L18 6M6 6l12 12"
-                                  />
-                                </svg>
-                              </button>
-                            </div>
-                          </div>
-                        )
-                      )}
-                    </div>
-                  )}
-                  {libraryContextBanner}
-                  <div className="relative flex items-end">
-                    {/* Plus button for Library dropdown */}
-                    <DropdownMenu
-                      open={inputMenuOpen}
-                      onOpenChange={setInputMenuOpen}
-                    >
-                      <DropdownMenuTrigger asChild>
-                        <Button
-                          type="button"
-                          size="sm"
-                          // Ensure the button is visible and not covered
-                          className="absolute left-2 top-1/2 -translate-y-1/2 h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-transparent hover:bg-gray-200/60 dark:hover:bg-gray-800/80 text-gray-500 dark:text-gray-300 shadow-none z-10"
-                          tabIndex={-1}
-                          aria-label="Open Library"
-                        >
-                          <Plus className="h-4 w-4" />
-                        </Button>
-                      </DropdownMenuTrigger>
-                      <DropdownMenuContent
-                        align="start"
-                        sideOffset={6}
-                        className="w-36 text-xs"
-                      >
-                        <DropdownMenuItem onSelect={handleFileMenuSelect}>
-                          <span className="inline-flex items-center">
-                            <FileText className="h-4 w-4 mr-1" />
-                            Files &amp; media
-                          </span>
-                        </DropdownMenuItem>
-                        <DropdownMenuItem
-                          onSelect={() => {
-                            openLibraryCard();
-                          }}
-                        >
-                          <span className="inline-flex items-center">
-                            <Library className="h-4 w-4 mr-1" />
-                            Library
-                          </span>
-                        </DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
-                    <Textarea
-                      value={input}
-                      onChange={handleInputChange}
-                      placeholder="Ask a question..."
-                      className="w-full resize-none border-gray-200 dark:border-gray-700 rounded-2xl pl-12 sm:pl-14 pr-14 sm:pr-16 py-3 sm:py-3 min-h-[44px] sm:min-h-[48px] max-h-28 sm:max-h-32 focus:border-gray-300 dark:focus:border-gray-600 focus:ring-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm overflow-y-auto text-base shadow-lg border"
-                      disabled={status === "error" || isLoading}
-                      rows={1}
-                      style={{ lineHeight: "1.5" }}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" && !e.shiftKey) {
-                          e.preventDefault();
-                          handleSubmit(e);
-                        }
-                      }}
-                    />
-                    <Button
-                      type={canStop ? "button" : "submit"}
-                      onClick={canStop ? stop : undefined}
-                      disabled={
-                        !canStop &&
-                        (isLoading || !input.trim() || status === "error")
-                      }
-                      className="absolute right-2 sm:right-2 top-1/2 -translate-y-1/2 rounded-xl h-8 w-8 sm:h-9 sm:w-9 p-0 bg-gray-900 hover:bg-gray-800 dark:bg-gray-100 dark:hover:bg-gray-200 dark:text-gray-900 shadow-lg"
-                    >
-                      {canStop ? (
-                        <Square className="h-4 w-4" />
-                      ) : isLoading ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <svg
-                          className="h-4 w-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M5 12l14 0m-7-7l7 7-7 7"
-                          />
-                        </svg>
-                      )}
-                    </Button>
-                  </div>
-                </form>
-
-                {/* Mobile Bottom Bar - Social links and disclaimer below input */}
-                <motion.div
-                  className="block sm:hidden mt-4 pt-3 border-t border-gray-200 dark:border-gray-700"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.5, duration: 0.3 }}
-                >
-                  <div className="flex flex-col items-center space-y-3">
-                    <div className="flex items-center justify-center space-x-4">
-                      <SocialLinks />
-                    </div>
-                    <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
-                      Not financial advice.
+              {savedCollections.length > 0 ? (
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                      Collection
                     </p>
+                    <Select
+                      value={resolvedLibraryCollectionId ?? undefined}
+                      onValueChange={handleLibraryCollectionChange}
+                    >
+                      <SelectTrigger className="w-full justify-between">
+                        <SelectValue placeholder="Select a collection" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {savedCollections.map((collection) => (
+                          <SelectItem key={collection.id} value={collection.id}>
+                            {collection.title}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
                   </div>
-                </motion.div>
-              </motion.div>
-            )}
-          </AnimatePresence>
-        </div>
 
-        <Dialog open={showLibraryCard} onOpenChange={setShowLibraryCard}>
-          <DialogContent className="sm:max-w-2xl">
-            <DialogHeader>
-              <DialogTitle>Saved Library</DialogTitle>
-              <DialogDescription>
-                Select a collection to review the answers you&apos;ve saved.
-              </DialogDescription>
-            </DialogHeader>
-
-            {savedCollections.length > 0 ? (
-              <div className="space-y-4">
-                <div className="space-y-2">
-                  <p className="text-xs font-medium uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                    Collection
+                  <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40">
+                    {librarySelectionPending ? (
+                      <div className="p-6 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Loading saved results...
+                      </div>
+                    ) : (
+                      renderLibraryItems(savedItems)
+                    )}
+                  </div>
+                </div>
+              ) : savedItems.length > 0 ? (
+                <div className="space-y-4">
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    These items are saved locally on this device.
                   </p>
-                  <Select
-                    value={resolvedLibraryCollectionId ?? undefined}
-                    onValueChange={handleLibraryCollectionChange}
-                  >
-                    <SelectTrigger className="w-full justify-between">
-                      <SelectValue placeholder="Select a collection" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {savedCollections.map((collection) => (
-                        <SelectItem key={collection.id} value={collection.id}>
-                          {collection.title}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40">
+                    {renderLibraryItems(savedItems)}
+                  </div>
                 </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
+                  You haven&apos;t saved any results yet. Save a response to
+                  start building your library.
+                </div>
+              )}
+            </DialogContent>
+          </Dialog>
+        </SeenResultsProvider>
+      </SavedResultsProvider>
 
-                <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40">
-                  {librarySelectionPending ? (
-                    <div className="p-6 flex items-center justify-center text-sm text-gray-500 dark:text-gray-400">
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Loading saved results...
-                    </div>
-                  ) : (
-                    renderLibraryItems(savedItems)
-                  )}
-                </div>
-              </div>
-            ) : savedItems.length > 0 ? (
-              <div className="space-y-4">
-                <p className="text-sm text-gray-600 dark:text-gray-400">
-                  These items are saved locally on this device.
-                </p>
-                <div className="max-h-72 overflow-y-auto rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50/60 dark:bg-gray-900/40">
-                  {renderLibraryItems(savedItems)}
-                </div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-dashed border-gray-200 dark:border-gray-700 bg-gray-50/80 dark:bg-gray-900/40 p-6 text-center text-sm text-gray-500 dark:text-gray-400">
-                You haven&apos;t saved any results yet. Save a response to start
-                building your library.
-              </div>
-            )}
-          </DialogContent>
-        </Dialog>
-      </SeenResultsProvider>
-    </SavedResultsProvider>
+      {/* Auth Modal for Library access */}
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
+    </>
   );
 }
