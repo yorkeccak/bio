@@ -1,12 +1,569 @@
 import { z } from "zod";
 import { tool } from "ai";
+import mammoth from "mammoth";
+// import pdfParse from "pdf-parse"; // Removed - using AI SDK instead
 import { Valyu } from "valyu-js";
 import { track } from "@vercel/analytics/server";
-import { PolarEventTracker } from '@/lib/polar-events';
-import { Daytona } from '@daytonaio/sdk';
+import { PolarEventTracker } from "@/lib/polar-events";
+import { Daytona } from "@daytonaio/sdk";
+import { createHash } from "node:crypto";
 
+// In-flight dedupe
+const inflight = new Map<string, Promise<any>>();
+function inflightKey(tool: string, query: string, opts?: any) {
+  return `${tool}::${query.trim().toLowerCase()}::${JSON.stringify(
+    opts || {}
+  )}`;
+}
+
+async function once<T>(
+  tool: string,
+  query: string,
+  opts: any,
+  run: () => Promise<T>
+): Promise<T> {
+  const key = inflightKey(tool, query, opts);
+  if (inflight.has(key)) return inflight.get(key)! as Promise<T>;
+  const p = (async () => {
+    try {
+      return await run();
+    } finally {
+      inflight.delete(key);
+    }
+  })();
+  inflight.set(key, p);
+  return p;
+}
+
+// URL normalization + ID helpers
+function canonQuery(q?: string) {
+  return (q || "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function canonOptions(input: any): any {
+  if (Array.isArray(input)) {
+    return [...input]
+      .map(canonOptions)
+      .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
+  }
+  if (input && typeof input === "object") {
+    const out: any = {};
+    Object.keys(input)
+      .sort()
+      .forEach((k) => {
+        const v = (input as any)[k];
+        if (v === undefined || v === null) return;
+        out[k] = canonOptions(v);
+      });
+    return out;
+  }
+  return input;
+}
+
+function buildToolKey(tool: string, query: string, opts: any) {
+  return `${tool}::${canonQuery(query)}::${JSON.stringify(canonOptions(opts))}`;
+}
+function normalizeUrl(url?: string) {
+  if (!url) return "";
+  try {
+    const u = new URL(url);
+    u.hash = "";
+    // strip tracking params
+    for (const k of Array.from(u.searchParams.keys())) {
+      if (k.startsWith("utm_") || k === "ref" || k === "ref_src")
+        u.searchParams.delete(k);
+    }
+    const host = u.host.toLowerCase();
+    const path = u.pathname.replace(/\/+$/, "");
+    const qs = u.searchParams.toString();
+    return `${u.protocol}//${host}${path}${qs ? `?${qs}` : ""}`;
+  } catch {
+    return (url || "").trim();
+  }
+}
+function keyToUuid(key: string) {
+  const hash = createHash("sha256").update(key).digest();
+  const bytes = Buffer.from(hash.slice(0, 16));
+  bytes[6] = (bytes[6] & 0x0f) | 0x40;
+  bytes[8] = (bytes[8] & 0x3f) | 0x80;
+  const hex = bytes.toString("hex");
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(
+    12,
+    16
+  )}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+}
+function extractArxivId(url?: string) {
+  if (!url) return undefined;
+  const m = url.match(/arxiv\.org\/(?:abs|pdf)\/([\w.\-]+)/i);
+  return m?.[1];
+}
+function extractDoi(s?: string) {
+  if (!s) return undefined;
+  const m = s.match(/10\.\d{4,9}\/[-._;()/:A-Z0-9]+/i);
+  return m?.[0]?.toLowerCase();
+}
+
+function resultId(r: any) {
+  const key =
+    r.nct_id ||
+    r.data?.nct_id ||
+    r.metadata?.pmid ||
+    r.pmid ||
+    r.metadata?.doi ||
+    r.doi ||
+    r.metadata?.setid ||
+    extractArxivId(r.url) ||
+    normalizeUrl(r.url) ||
+    `${(r.title || "").toLowerCase()}|${(r.source || "").toLowerCase()}|${
+      r.date || ""
+    }`;
+  return keyToUuid(key);
+}
+function dedupeBy<T>(arr: T[], getId: (x: T) => string) {
+  const seen = new Set<string>();
+  return arr.filter((x) => {
+    const id = getId(x);
+    if (!id || seen.has(id)) {
+      return false;
+    }
+    seen.add(id);
+    return true;
+  });
+}
+
+function extractMissingModuleName(message?: string) {
+  if (!message) return null;
+  const match = message.match(
+    /ModuleNotFoundError: No module named ['"]([^'"]+)['"]/
+  );
+  return match ? match[1] : null;
+}
+
+function escapeModuleTag(text?: string | null) {
+  if (!text) return text || "";
+  return text.replace(/<module>/g, "&lt;module&gt;");
+}
+
+type ValidationStatus = "pass" | "fail";
+
+type ValidationItem = {
+  label: string;
+  status: ValidationStatus;
+  detail: string;
+};
+
+function formatValidationSummary(items: ValidationItem[]) {
+  if (!items.length) return "";
+  const lines = items.map((item) => {
+    const icon = item.status === "pass" ? "✅" : "❌";
+    return `${icon} ${item.label}: ${item.detail}`;
+  });
+  return `🔍 **Validation Checks**\n${lines.join("\n")}`;
+}
+
+function extractImportedModules(code: string) {
+  const modules = new Set<string>();
+  const lines = code.split(/\r?\n/);
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const fromMatch = line.match(/^from\s+([A-Za-z0-9_.]+)\s+import\s+/);
+    if (fromMatch) {
+      const base = fromMatch[1];
+      if (!base.startsWith(".")) {
+        modules.add(base.split(".")[0]);
+      }
+      continue;
+    }
+
+    const importMatch = line.match(/^import\s+(.+)/);
+    if (importMatch) {
+      const targets = importMatch[1]
+        .split(",")
+        .map((segment) => segment.trim())
+        .filter(Boolean);
+
+      for (const target of targets) {
+        if (target.startsWith(".")) continue;
+        const base = target
+          .split(/\s+as\s+/i)[0]
+          .split(".")[0]
+          .trim();
+        if (base) modules.add(base);
+      }
+    }
+  }
+
+  return Array.from(modules);
+}
+
+function detectCodeIssues(code: string): ValidationItem | null {
+  const lines = code.split(/\r?\n/);
+  const numpyAliases = new Set<string>();
+  let importsNumpy = false;
+
+  for (const rawLine of lines) {
+    const line = rawLine.trim();
+    if (!line || line.startsWith("#")) continue;
+
+    const importAlias = line.match(
+      /^import\s+numpy\s+as\s+([A-Za-z_][A-Za-z0-9_]*)/
+    );
+    if (importAlias) {
+      numpyAliases.add(importAlias[1]);
+      importsNumpy = true;
+      continue;
+    }
+
+    if (/^import\s+numpy\b/.test(line) || /^from\s+numpy\b/.test(line)) {
+      numpyAliases.add("numpy");
+      importsNumpy = true;
+    }
+  }
+
+  if (importsNumpy) {
+    const usesNpIdentifier = /\bnp\s*\./.test(code);
+    const overridesNp = /(^|[^A-Za-z0-9_])np\s*=\s*/.test(code);
+    const hasNpAlias = numpyAliases.has("np");
+
+    if (usesNpIdentifier && !hasNpAlias) {
+      return {
+        label: "NumPy Alias Safety",
+        status: "fail",
+        detail:
+          "The code calls `np.` functions but never assigns the `np` alias. Import NumPy as `np` (not allowed here) or reference the chosen alias consistently.",
+      };
+    }
+
+    if (overridesNp) {
+      return {
+        label: "NumPy Alias Safety",
+        status: "fail",
+        detail:
+          "The identifier `np` is reassigned in the script, so subsequent calls like `np.exp()` will break. Avoid assigning new values to `np` after importing NumPy.",
+      };
+    }
+  }
+
+  return null;
+}
+
+// Per-request dedupe across tools (no TTL; resets each server process restart)
+const seenByRequest = new Map<string, Set<string>>();
+function dedupeAgainstRequest<T>(
+  requestId: string | undefined,
+  items: T[],
+  getId: (x: T) => string
+) {
+  if (!requestId) return items;
+  let bag = seenByRequest.get(requestId);
+  if (!bag) {
+    bag = new Set();
+    seenByRequest.set(requestId, bag);
+  }
+  return items.filter((x) => {
+    const id = getId(x);
+    if (!id || bag!.has(id)) return false;
+    bag!.add(id);
+    return true;
+  });
+}
+
+// Per-session in-memory memo (no TTL). Collapses repeat queries across the same chat session.
+const memoBySession = new Map<string, Map<string, any>>();
+const SESSION_MEMO_MAX_KEYS = 200;
+
+async function withSessionMemo<T>(
+  sessionId: string | undefined,
+  key: string,
+  run: () => Promise<T>
+): Promise<T> {
+  if (!sessionId) return run();
+  let bag = memoBySession.get(sessionId);
+  if (!bag) {
+    bag = new Map();
+    memoBySession.set(sessionId, bag);
+  }
+  if (bag.has(key)) return bag.get(key) as T;
+  const value = await run();
+  // Simple LRU-ish: evict oldest when at capacity
+  if (bag.size >= SESSION_MEMO_MAX_KEYS) {
+    const firstKey = bag.keys().next().value;
+    if (firstKey) bag.delete(firstKey);
+  }
+  bag.set(key, value);
+  return value;
+}
+
+function logDedupe(
+  tool: string,
+  requestId: string | undefined,
+  raw: number,
+  mapped: number,
+  unique: number,
+  final: any[]
+) {
+  console.log(`[${tool}] dedupe`, {
+    requestId,
+    raw,
+    mapped,
+    unique,
+    final: final.length,
+    ids: final.map((x: any) => x.id).slice(0, 50),
+  });
+}
 
 export const healthcareTools = {
+  // File reading tools - allow the model to read user-provided files via URLs
+  readTextFromUrl: tool({
+    description:
+      "Fetch a plain text or text-like file from a URL and return its contents. Accepts text/*, application/json, and common code/text formats.",
+    inputSchema: z.object({
+      url: z.string().url().describe("Publicly accessible URL to the file"),
+      maxBytes: z
+        .number()
+        .min(1024)
+        .max(25 * 1024 * 1024)
+        .optional()
+        .default(10 * 1024 * 1024)
+        .describe("Maximum bytes to download (default 10MB, max 25MB)"),
+      charset: z
+        .string()
+        .optional()
+        .describe("Optional character set hint, e.g., 'utf-8'"),
+    }),
+    execute: async ({ url, maxBytes, charset }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 15000);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          return `❌ Failed to fetch URL (status ${res.status})`;
+        }
+        const contentType = res.headers.get("content-type") || "";
+        const isTextLike =
+          contentType.startsWith("text/") ||
+          contentType.includes("application/json") ||
+          contentType.includes("application/xml") ||
+          contentType.includes("+json") ||
+          contentType.includes("+xml");
+        if (!isTextLike) {
+          return `❌ Unsupported content-type for readTextFromUrl: ${contentType}`;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) {
+          const text = await res.text();
+          return text;
+        }
+        const limit = maxBytes || 10 * 1024 * 1024;
+        const chunks: Uint8Array[] = [];
+        let downloaded = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            downloaded += value.byteLength;
+            if (downloaded > limit) {
+              return `❌ File exceeds maxBytes limit (${limit} bytes)`;
+            }
+            chunks.push(value);
+          }
+        }
+        const buffer = Buffer.concat(chunks);
+        return buffer.toString((charset as BufferEncoding) || "utf-8");
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return "⏱️ Timeout fetching the URL (15s).";
+        }
+        return `❌ Error fetching text: ${err?.message || String(err)}`;
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  }),
+
+  parsePdfFromUrl: tool({
+    description:
+      "Download a PDF from a URL and extract its text content. Returns plain text.",
+    inputSchema: z.object({
+      url: z.string().url().describe("Publicly accessible URL to the PDF"),
+      maxBytes: z
+        .number()
+        .min(1024)
+        .max(25 * 1024 * 1024)
+        .optional()
+        .default(20 * 1024 * 1024)
+        .describe("Maximum bytes to download (default 20MB, max 25MB)"),
+    }),
+    execute: async ({ url, maxBytes }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          return `❌ Failed to fetch URL (status ${res.status})`;
+        }
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("pdf")) {
+          return `❌ URL does not appear to be a PDF (content-type: ${contentType})`;
+        }
+        const reader = res.body?.getReader();
+        if (!reader) {
+          const arrayBuffer = await res.arrayBuffer();
+          // Use AI SDK for PDF processing instead of pdf-parse
+          const { generateText } = await import("ai");
+          const { openai } = await import("@ai-sdk/openai");
+
+          try {
+            const result = await generateText({
+              model: openai("gpt-5"),
+              messages: [
+                {
+                  role: "user",
+                  content: [
+                    {
+                      type: "text",
+                      text: "Extract all text content from this PDF file.",
+                    },
+                    {
+                      type: "file",
+                      data: Buffer.from(arrayBuffer),
+                      mediaType: "application/pdf",
+                      filename: "document.pdf",
+                    },
+                  ],
+                },
+              ],
+            });
+            return result.text || "";
+          } catch (error) {
+            return `❌ Error processing PDF with AI SDK: ${
+              error instanceof Error ? error.message : String(error)
+            }`;
+          }
+        }
+        const limit = maxBytes || 20 * 1024 * 1024;
+        const chunks: Uint8Array[] = [];
+        let downloaded = 0;
+        while (true) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          if (value) {
+            downloaded += value.byteLength;
+            if (downloaded > limit) {
+              return `❌ PDF exceeds maxBytes limit (${limit} bytes)`;
+            }
+            chunks.push(value);
+          }
+        }
+        const buffer = Buffer.concat(chunks);
+
+        // Use AI SDK for PDF processing instead of pdf-parse
+        const { generateText } = await import("ai");
+        const { openai } = await import("@ai-sdk/openai");
+
+        try {
+          const result = await generateText({
+            model: openai("gpt-5"),
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "text",
+                    text: "Extract all text content from this PDF file.",
+                  },
+                  {
+                    type: "file",
+                    data: buffer,
+                    mediaType: "application/pdf",
+                    filename: "document.pdf",
+                  },
+                ],
+              },
+            ],
+          });
+          return result.text || "";
+        } catch (error) {
+          return `❌ Error processing PDF with AI SDK: ${
+            error instanceof Error ? error.message : String(error)
+          }`;
+        }
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return "⏱️ Timeout fetching the PDF (20s).";
+        }
+        return `❌ Error parsing PDF: ${err?.message || String(err)}`;
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  }),
+
+  parseDocxFromUrl: tool({
+    description:
+      "Download a DOCX from a URL and extract its text content using mammoth.",
+    inputSchema: z.object({
+      url: z.string().url().describe("Publicly accessible URL to the DOCX"),
+      maxBytes: z
+        .number()
+        .min(1024)
+        .max(25 * 1024 * 1024)
+        .optional()
+        .default(15 * 1024 * 1024)
+        .describe("Maximum bytes to download (default 15MB, max 25MB)"),
+    }),
+    execute: async ({ url, maxBytes }) => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 20000);
+      try {
+        const res = await fetch(url, { signal: controller.signal });
+        if (!res.ok) {
+          return `❌ Failed to fetch URL (status ${res.status})`;
+        }
+        const contentType = res.headers.get("content-type") || "";
+        if (!contentType.includes("word") && !contentType.includes("docx")) {
+          // Allow even if header is missing; just warn
+          // return `❌ URL does not appear to be a DOCX (content-type: ${contentType})`;
+        }
+        const reader = res.body?.getReader();
+        const limit = maxBytes || 15 * 1024 * 1024;
+        const chunks: Uint8Array[] = [];
+        let downloaded = 0;
+        if (reader) {
+          while (true) {
+            const { value, done } = await reader.read();
+            if (done) break;
+            if (value) {
+              downloaded += value.byteLength;
+              if (downloaded > limit) {
+                return `❌ DOCX exceeds maxBytes limit (${limit} bytes)`;
+              }
+              chunks.push(value);
+            }
+          }
+        } else {
+          const ab = await res.arrayBuffer();
+          if (ab.byteLength > limit) {
+            return `❌ DOCX exceeds maxBytes limit (${limit} bytes)`;
+          }
+          chunks.push(new Uint8Array(ab));
+        }
+        const buffer = Buffer.concat(chunks);
+        const { value } = await mammoth.extractRawText({ buffer });
+        return value || "";
+      } catch (err: any) {
+        if (err?.name === "AbortError") {
+          return "⏱️ Timeout fetching the DOCX (20s).";
+        }
+        return `❌ Error parsing DOCX: ${err?.message || String(err)}`;
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  }),
   // Chart Creation Tool - Create interactive charts for data visualization
   createChart: tool({
     description: `Create interactive charts for clinical and research data visualization. 
@@ -107,7 +664,7 @@ export const healthcareTools = {
       description,
     }) => {
       // Track chart creation
-      await track('Chart Created', {
+      await track("Chart Created", {
         chartType: type,
         title: title,
         seriesCount: dataSeries.length,
@@ -115,7 +672,7 @@ export const healthcareTools = {
           (sum, series) => sum + series.data.length,
           0
         ),
-        hasDescription: !!description
+        hasDescription: !!description,
       });
 
       // Log chart creation details
@@ -169,6 +726,12 @@ export const healthcareTools = {
   codeExecution: tool({
     description: `Execute Python code securely in a Daytona Sandbox for financial modeling, data analysis, and calculations. CRITICAL: Always include print() statements to show results. Daytona can also capture rich artifacts (e.g., charts) when code renders images.
 
+    IMPORTANT INSTRUCTIONS:
+    - You can only import standard library utilities (math, statistics, etc.), no external packages.
+    - Do **not** under any circumstances attempt to install packages (pip, conda, etc.) or load external files or networks.
+    - Keep everything self-contained in plain Python.
+    - Your entire code MUST be strictly **under 10,000 characters** (including all whitespace and comments). If your code is too long, shorten or simplify it.
+
     REQUIRED FORMAT - Your Python code MUST include print statements:
     
     Example for financial calculations:
@@ -184,10 +747,9 @@ export const healthcareTools = {
     print(f"Interest earned: $\{amount - principal:,.2f}")
     
     Example for data analysis:
-    import math
     values = [100, 150, 200, 175, 225]
     average = sum(values) / len(values)
-    std_dev = math.sqrt(sum((x - average) ** 2 for x in values) / len(values))
+    std_dev = (sum((x - average) ** 2 for x in values) / len(values)) ** 0.5
     print(f"Data: \{values}")
     print(f"Average: \{average:.2f}")
     print(f"Standard deviation: \{std_dev:.2f}")
@@ -214,9 +776,11 @@ export const healthcareTools = {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       const startTime = Date.now();
+      const validations: ValidationItem[] = [];
 
       try {
         console.log("[Code Execution] Executing Python code:", {
@@ -226,14 +790,24 @@ export const healthcareTools = {
         });
 
         // Check for reasonable code length
-        if (code.length > 10000) {
-          return '🚫 **Error**: Code too long. Please limit your code to 10,000 characters.';
+        const lengthOk = code.length <= 10000;
+        validations.push({
+          label: "Code Length",
+          status: lengthOk ? "pass" : "fail",
+          detail: lengthOk
+            ? "Within the 10,000 character limit."
+            : "Code exceeds the 10,000 character limit.",
+        });
+        if (!lengthOk) {
+          return `${formatValidationSummary(
+            validations
+          )}\n\nPlease shorten your code and try again.`;
         }
 
         // Initialize Daytona client
         const daytonaApiKey = process.env.DAYTONA_API_KEY;
         if (!daytonaApiKey) {
-          return '❌ **Configuration Error**: Daytona API key is not configured. Please set DAYTONA_API_KEY in your environment.';
+          return "❌ **Configuration Error**: Daytona API key is not configured. Please set DAYTONA_API_KEY in your environment.";
         }
 
         const daytona = new Daytona({
@@ -246,34 +820,104 @@ export const healthcareTools = {
         let sandbox: any | null = null;
         try {
           // Create a Python sandbox
-          sandbox = await daytona.create({ language: 'python' });
+          sandbox = await daytona.create({ language: "python" });
+
+          const importRegex =
+            /(^|\s)(?:from\s+[A-Za-z_][A-Za-z0-9_.]*\s+import|import\s+[A-Za-z_][A-Za-z0-9_.]*)/m;
+          const hasImports = importRegex.test(code);
+          validations.push({
+            label: "Import Usage",
+            status: hasImports ? "fail" : "pass",
+            detail: hasImports
+              ? "Import statements detected. The sandbox requires fully self-contained code."
+              : "No import statements detected.",
+          });
+          if (hasImports) {
+            return `${formatValidationSummary(
+              validations
+            )}\n\nRemove the imports and rerun your request.`;
+          }
+
+          // Preflight imports to ensure only available modules are used
+          const importedModules = extractImportedModules(code);
+          const missingModules: string[] = [];
+
+          for (const modName of importedModules) {
+            const check = await sandbox.process.codeRun(`import ${modName}`);
+            if (check.exitCode !== 0) {
+              missingModules.push(modName);
+            }
+          }
+
+          if (missingModules.length > 0) {
+            const uniqueMissing = Array.from(new Set(missingModules));
+            const formatted = uniqueMissing.map((m) => `• \`${m}\``).join("\n");
+            validations.push({
+              label: "Module Availability",
+              status: "fail",
+              detail: `Attempted to import:\n${formatted}`,
+            });
+            return `${formatValidationSummary(
+              validations
+            )}\n\nPlease rewrite your Python code to rely only on built-in modules that are already available (no pip installs).`;
+          }
+          validations.push({
+            label: "Module Availability",
+            status: "pass",
+            detail: "No external module imports attempted.",
+          });
+
+          const aliasIssue = detectCodeIssues(code);
+          if (aliasIssue) {
+            validations.push(aliasIssue);
+            return `${formatValidationSummary(
+              validations
+            )}\n\nUpdate the code to satisfy the sandbox rules and try again.`;
+          }
+          validations.push({
+            label: "NumPy Alias Safety",
+            status: "pass",
+            detail: "No unsupported NumPy alias usage detected.",
+          });
+
+          const validationSummary = formatValidationSummary(validations);
 
           // Execute the user's code
           const execution = await sandbox.process.codeRun(code);
+
           const executionTime = Date.now() - startTime;
 
           // Track code execution
-          await track('Python Code Executed', {
+          await track("Python Code Executed", {
             success: execution.exitCode === 0,
             codeLength: code.length,
             outputLength: execution.result?.length || 0,
             executionTime: executionTime,
             hasDescription: !!description,
             hasError: execution.exitCode !== 0,
-            hasArtifacts: !!execution.artifacts
+            hasArtifacts: !!execution.artifacts,
           });
 
           // Track usage for pay-per-use customers with Polar events
-          if (userId && sessionId && userTier === 'pay_per_use' && execution.exitCode === 0 && !isDevelopment) {
+          if (
+            userId &&
+            sessionId &&
+            userTier === "pay_per_use" &&
+            execution.exitCode === 0 &&
+            !isDevelopment
+          ) {
             try {
               const polarTracker = new PolarEventTracker();
-              
-              console.log('[CodeExecution] Tracking Daytona usage with Polar:', {
-                userId,
-                sessionId,
-                executionTime
-              });
-              
+
+              console.log(
+                "[CodeExecution] Tracking Daytona usage with Polar:",
+                {
+                  userId,
+                  sessionId,
+                  executionTime,
+                }
+              );
+
               await polarTracker.trackDaytonaUsage(
                 userId,
                 sessionId,
@@ -282,11 +926,14 @@ export const healthcareTools = {
                   codeLength: code.length,
                   hasArtifacts: !!execution.artifacts,
                   success: execution.exitCode === 0,
-                  description: description || 'Code execution'
+                  description: description || "Code execution",
                 }
               );
             } catch (error) {
-              console.error('[CodeExecution] Failed to track Daytona usage:', error);
+              console.error(
+                "[CodeExecution] Failed to track Daytona usage:",
+                error
+              );
               // Don't fail the tool execution if usage tracking fails
             }
           }
@@ -294,16 +941,19 @@ export const healthcareTools = {
           // Handle execution errors
           if (execution.exitCode !== 0) {
             // Provide helpful error messages for common issues
-            let helpfulError = execution.result || 'Unknown execution error';
-            if (helpfulError.includes('NameError')) {
+            let helpfulError = execution.result || "Unknown execution error";
+            const missingModule = extractMissingModuleName(helpfulError);
+            if (missingModule) {
+              helpfulError = `${helpfulError}\n\n🚫 **Unsupported Package**: The Daytona sandbox cannot install external modules like \`${missingModule}\`. Please rewrite your code to use only standard library modules or packages that are already available.`;
+            } else if (helpfulError.includes("NameError")) {
               helpfulError = `${helpfulError}\n\n💡 **Tip**: Make sure all variables are defined before use. If you're trying to calculate something, include the full calculation in your code.`;
-            } else if (helpfulError.includes('SyntaxError')) {
+            } else if (helpfulError.includes("SyntaxError")) {
               helpfulError = `${helpfulError}\n\n💡 **Tip**: Check your Python syntax. Make sure all parentheses, quotes, and indentation are correct.`;
-            } else if (helpfulError.includes('ModuleNotFoundError')) {
-              helpfulError = `${helpfulError}\n\n💡 **Tip**: You can install packages inside the Daytona sandbox using pip if needed (e.g., pip install numpy).`;
             }
 
-            return `❌ **Execution Error**: ${helpfulError}`;
+            return `${validationSummary}\n\n❌ **Execution Error**: ${escapeModuleTag(
+              helpfulError
+            )}`;
           }
 
           console.log("[Code Execution] Success:", {
@@ -313,7 +963,7 @@ export const healthcareTools = {
           });
 
           // Format the successful execution result
-          return `🐍 **Python Code Execution (Daytona Sandbox)**
+          return `${validationSummary}\n\n🐍 **Python Code Execution (Daytona Sandbox)**
 ${description ? `**Description**: ${description}\n` : ""}
 
 \`\`\`python
@@ -322,11 +972,10 @@ ${code}
 
 **Output:**
 \`\`\`
-${execution.result || "(No output produced)"}
+${escapeModuleTag(execution.result || "(No output produced)")}
 \`\`\`
 
 ⏱️ **Execution Time**: ${executionTime}ms`;
-
         } finally {
           // Clean up sandbox
           try {
@@ -334,14 +983,18 @@ ${execution.result || "(No output produced)"}
               await sandbox.delete();
             }
           } catch (cleanupError) {
-            console.error('[CodeExecution] Failed to delete Daytona sandbox:', cleanupError);
+            console.error(
+              "[CodeExecution] Failed to delete Daytona sandbox:",
+              cleanupError
+            );
           }
         }
-        
       } catch (error: any) {
-        console.error('[CodeExecution] Error:', error);
-        
-        return `❌ **Error**: Failed to execute Python code. ${error.message || 'Unknown error occurred'}`;
+        console.error("[CodeExecution] Error:", error);
+
+        return `❌ **Error**: Failed to execute Python code. ${
+          error.message || "Unknown error occurred"
+        }`;
       }
     },
   }),
@@ -380,76 +1033,98 @@ ${execution.result || "(No output produced)"}
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         // Check if Valyu API key is available
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable financial search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         // Configure search based on data type
         let searchOptions: any = {
           maxNumResults: maxResults || 10,
         };
 
-        const response = await valyu.search(query, searchOptions);
+        const sessionKey = buildToolKey(
+          "financialSearch",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "financialSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
         // Track Valyu financial search call
-        await track('Valyu API Call', {
-          toolType: 'financialSearch',
+        await track("Valyu API Call", {
+          toolType: "financialSearch",
           query: query,
-          dataType: dataType || 'auto',
+          dataType: dataType || "auto",
           maxResults: maxResults || 10,
           resultCount: response?.results?.length || 0,
           hasApiKey: !!apiKey,
           cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+          txId: (response as any)?.tx_id || null,
         });
 
         // Track usage for pay-per-use customers with Polar events
-        console.log('[FinancialSearch] Tracking Valyu API usage with Polar:', {
+        console.log("[FinancialSearch] Tracking Valyu API usage with Polar:", {
           userId,
           sessionId,
           userTier,
-          isDevelopment
+          isDevelopment,
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
-          console.log('[FinancialSearch] Tracking Valyu API usage with Polar:');
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
+          console.log("[FinancialSearch] Tracking Valyu API usage with Polar:");
           try {
             const polarTracker = new PolarEventTracker();
             // Use the actual Valyu API cost from response
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
+
             // Bright green color: \x1b[92m ... \x1b[0m
             console.log(
-              '\x1b[92m[FinancialSearch] Tracking Valyu API usage with Polar:\x1b[0m',
+              "\x1b[92m[FinancialSearch] Tracking Valyu API usage with Polar:\x1b[0m",
               {
                 userId,
                 sessionId,
                 valyuCostDollars,
-                resultCount: response?.results?.length || 0
+                resultCount: response?.results?.length || 0,
               }
             );
-            
+
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'financialSearch',
+              "financialSearch",
               valyuCostDollars,
               {
                 query,
                 resultCount: response?.results?.length || 0,
-                dataType: dataType || 'auto',
+                dataType: dataType || "auto",
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[FinancialSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[FinancialSearch] Failed to track Valyu API usage:",
+              error
+            );
             // Don't fail the search if usage tracking fails
           }
         }
@@ -475,22 +1150,42 @@ ${execution.result || "(No output produced)"}
         //   firstResultLength: response.results[0]?.length,
         // });
 
+        // Map + dedupe by canonical id
+        const mapped = (response?.results || []).map((r: any) => {
+          const key = normalizeUrl(r.url);
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Financial Data",
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source,
+            dataType: r.data_type,
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
+          };
+        });
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+
         // Return structured data for the model to process
         const formattedResponse = {
           type: "financial_search",
           query: query,
           dataType: dataType,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
-            title: result.title || "Financial Data",
-            url: result.url,
-            content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source,
-            dataType: result.data_type,
-            length: result.length,
-            image_url: result.image_url || {},
-            relevance_score: result.relevance_score,
+          resultCount: final.length,
+          results: final.map((r: any) => ({
+            id: r.id,
+            title: r.title,
+            url: r.url,
+            content: r.content,
+            date: r.date,
+            source: r.source,
+            dataType: r.dataType,
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
           })),
         };
 
@@ -531,7 +1226,9 @@ ${execution.result || "(No output produced)"}
     description:
       "Wiley finance/business/accounting corpus search for authoritative academic content",
     inputSchema: z.object({
-      query: z.string().describe("Search query for Wiley finance/business/accounting corpus"),
+      query: z
+        .string()
+        .describe("Search query for Wiley finance/business/accounting corpus"),
       maxResults: z
         .number()
         .min(1)
@@ -544,7 +1241,8 @@ ${execution.result || "(No output produced)"}
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
 
       try {
         // Check if Valyu API key is available
@@ -552,57 +1250,74 @@ ${execution.result || "(No output produced)"}
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable Wiley search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         // Configure search options for Wiley sources
         const searchOptions: any = {
           maxNumResults: maxResults || 10,
           includedSources: [
             "wiley/wiley-finance-papers",
-            "wiley/wiley-finance-books"
-          ]
+            "wiley/wiley-finance-books",
+          ],
         };
+        if (searchOptions.includedSources?.sort)
+          searchOptions.includedSources.sort();
 
-        console.log('[WileySearch] Search options:', searchOptions);
-
-        const response = await valyu.search(query, searchOptions);
+        const sessionKey = buildToolKey("wileySearch", query, searchOptions);
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "wileySearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
         // Track Valyu Wiley search call
-        await track('Valyu API Call', {
-          toolType: 'wileySearch',
+        await track("Valyu API Call", {
+          toolType: "wileySearch",
           query: query,
           maxResults: maxResults || 10,
           resultCount: response?.results?.length || 0,
           hasApiKey: !!apiKey,
           cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+          txId: (response as any)?.tx_id || null,
         });
 
         // Track usage for pay-per-use customers with Polar events
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            console.log('[WileySearch] Tracking Valyu API usage with Polar:', {
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
+            console.log("[WileySearch] Tracking Valyu API usage with Polar:", {
               userId,
               sessionId,
               valyuCostDollars,
-              resultCount: response?.results?.length || 0
+              resultCount: response?.results?.length || 0,
             });
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'wileySearch',
+              "wileySearch",
               valyuCostDollars,
               {
                 query,
                 resultCount: response?.results?.length || 0,
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[WileySearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[WileySearch] Failed to track Valyu API usage:",
+              error
+            );
             // Don't fail the search if usage tracking fails
           }
         }
@@ -611,31 +1326,43 @@ ${execution.result || "(No output produced)"}
           return `🔍 No Wiley academic results found for "${query}". Try rephrasing your search.`;
         }
 
+        // Map and dedupe by canonical id
+        const mapped = (response?.results || []).map((r: any) => {
+          const pmid = r.metadata?.pmid ? String(r.metadata.pmid) : undefined;
+          const doi =
+            extractDoi(r.metadata?.doi) ||
+            extractDoi(r.url) ||
+            extractDoi(r.content);
+          const arxiv = extractArxivId(r.url);
+          const normalized = normalizeUrl(r.url);
+          const key = pmid || doi || arxiv || normalized;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Wiley Academic Result",
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source,
+            dataType: r.data_type,
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
+          };
+        });
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+
         // Return structured data for the model to process
-        const formattedResponse = {
-          type: "wiley_search",
-          query: query,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
-            title: result.title || "Wiley Academic Result",
-            url: result.url,
-            content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source,
-            dataType: result.data_type,
-            length: result.length,
-            image_url: result.image_url || {},
-            relevance_score: result.relevance_score,
-          })),
-        };
-
-        console.log(
-          "[Wiley Search] Formatted response size:",
-          JSON.stringify(formattedResponse).length,
-          "bytes"
+        return JSON.stringify(
+          {
+            type: "wiley_search",
+            query: query,
+            resultCount: final.length,
+            results: final,
+          },
+          null,
+          2
         );
-
-        return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
           if (
@@ -682,85 +1409,136 @@ ${execution.result || "(No output produced)"}
       startDate: z
         .string()
         .optional()
-        .describe('Start date filter in MM-DD-YYYY format'),
+        .describe("Start date filter in MM-DD-YYYY format"),
       endDate: z
         .string()
         .optional()
-        .describe('End date filter in MM-DD-YYYY format'),
+        .describe("End date filter in MM-DD-YYYY format"),
     }),
     execute: async ({ query, maxResults, startDate, endDate }, options) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable clinical trials search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         // Always request 6 results for UI display, but we'll limit what we send to the model
         const searchOptions: any = {
-          maxNumResults: 6,  // Fixed at 6 for UI display
-          searchType: 'proprietary',
-          includedSources: ['valyu/valyu-clinical-trials'],
+          maxNumResults: 6, // Fixed at 6 for UI display
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-clinical-trials"],
           relevanceThreshold: 0.4,
           isToolCall: true,
         };
+        if (searchOptions.includedSources?.sort)
+          searchOptions.includedSources.sort();
 
         if (startDate) searchOptions.startDate = startDate;
         if (endDate) searchOptions.endDate = endDate;
 
-        const response = await valyu.search(query, searchOptions);
+        const sessionKey = buildToolKey(
+          "clinicalTrialsSearch",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "clinicalTrialsSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'clinicalTrialsSearch',
-          query: query,
-          maxResults: maxResults || 10,
-          resultCount: response?.results?.length || 0,
-          hasApiKey: !!apiKey,
-          cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+        const mapped = response.results.map((r: any) => {
+          const key = r.nct_id || r.data?.nct_id;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title,
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source || r.source,
+          };
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+        logDedupe(
+          "clinicalTrialsSearch",
+          requestId,
+          response?.results?.length || 0,
+          mapped.length,
+          unique.length,
+          final
+        );
+
+        await track("Valyu API Call", {
+          toolType: "clinicalTrialsSearch",
+          query: query,
+          maxResults: maxResults || 10,
+          resultCount: final.length || 0,
+          hasApiKey: !!apiKey,
+          cost: (response as any)?.total_deduction_dollars || null,
+          txId: (response as any)?.tx_id || null,
+        });
+
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'clinicalTrialsSearch',
+              "clinicalTrialsSearch",
               valyuCostDollars,
               {
                 query,
-                resultCount: response?.results?.length || 0,
+                resultCount: final.length || 0,
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[ClinicalTrialsSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[ClinicalTrialsSearch] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
         if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "clinical_trials",
-            query: query,
-            resultCount: 0,
-            results: [],
-            message: `No clinical trials found for "${query}". Try using different search terms or checking ClinicalTrials.gov directly.`
-          }, null, 2);
+          return JSON.stringify(
+            {
+              type: "clinical_trials",
+              query: query,
+              resultCount: final.length,
+              results: final,
+              message: `No clinical trials found for "${query}". Try using different search terms or checking ClinicalTrials.gov directly.`,
+            },
+            null,
+            2
+          );
         }
 
         // Extract overview information for each trial
         const extractOverview = (content: string) => {
           try {
             const data = JSON.parse(content);
-            
+
             // Return just the key overview fields
             return {
               nct_id: data.nct_id,
@@ -772,30 +1550,36 @@ ${execution.result || "(No output produced)"}
               // Keep full brief summary - this is the most important part
               brief_summary: data.brief_summary || "No summary available",
               // Just the names of interventions
-              interventions: data.interventions ? 
-                data.interventions.slice(0, 3).map((i: any) => i.name).filter(Boolean) : [],
+              interventions: data.interventions
+                ? data.interventions
+                    .slice(0, 3)
+                    .map((i: any) => i.name)
+                    .filter(Boolean)
+                : [],
               start_date: data.start_date,
               completion_date: data.completion_date,
             };
           } catch (e) {
-            console.error('Failed to parse clinical trial data:', e);
+            console.error("Failed to parse clinical trial data:", e);
             return null;
           }
         };
 
         // Create overview version for both model and UI
-        const overviewResults = response.results.map((result: any) => {
-          const overview = extractOverview(result.content);
-          if (!overview) return null;
-          
-          return {
-            ...overview,
-            url: result.url,
-            source: "valyu/valyu-clinical-trials",
-            dataType: "clinical_trials",
-            relevance_score: result.relevance_score,
-          };
-        }).filter(Boolean);
+        const overviewResults = response.results
+          .map((result: any) => {
+            const overview = extractOverview(result.content);
+            if (!overview) return null;
+
+            return {
+              ...overview,
+              url: result.url,
+              source: "valyu/valyu-clinical-trials",
+              dataType: "clinical_trials",
+              relevance_score: result.relevance_score,
+            };
+          })
+          .filter(Boolean);
 
         // Return overview results - this is what both model and UI will use
         const formattedResponse = {
@@ -803,13 +1587,16 @@ ${execution.result || "(No output produced)"}
           query: query,
           resultCount: overviewResults.length,
           results: overviewResults,
-          note: `Found ${overviewResults.length} clinical trials. Use 'getClinicalTrialDetails' tool with NCT ID for full details of any specific trial.`
+          note: `Found ${overviewResults.length} clinical trials. Use 'getClinicalTrialDetails' tool with NCT ID for full details of any specific trial.`,
         };
 
         return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -821,71 +1608,123 @@ ${execution.result || "(No output produced)"}
   }),
 
   getClinicalTrialDetails: tool({
-    description: "Get full detailed information about a specific clinical trial using its NCT ID. Use this after finding trials with clinicalTrialsSearch to dive deeper into specific trials.",
+    description:
+      "Get full detailed information about a specific clinical trial using its NCT ID. Use this after finding trials with clinicalTrialsSearch to dive deeper into specific trials.",
     inputSchema: z.object({
-      nctId: z.string().describe('The NCT ID of the clinical trial'),
+      nctId: z.string().describe("The NCT ID of the clinical trial"),
     }),
     execute: async ({ nctId }, options) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         // Search for the specific NCT ID
         const searchOptions: any = {
           maxNumResults: 5,
-          searchType: 'proprietary',
-          includedSources: ['valyu/valyu-clinical-trials'],
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-clinical-trials"],
           relevanceThreshold: 0.1, // Lower threshold since we're looking for exact match
           isToolCall: true,
         };
+        if (searchOptions.includedSources?.sort)
+          searchOptions.includedSources.sort();
 
-        const response = await valyu.search(`clinical trial: ${nctId}`, searchOptions);
+        const sessionKey = buildToolKey(
+          "getClinicalTrialDetails",
+          nctId,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "getClinicalTrialDetails",
+            canonQuery(nctId),
+            canonOptions(searchOptions),
+            () => valyu.search(`clinical trial: ${nctId}`, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'getClinicalTrialDetails',
+        const mapped = response.results.map((r: any) => {
+          const key = r.nct_id || r.metadata?.nct_id;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title,
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source || r.source,
+          };
+        });
+
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+        logDedupe(
+          "getClinicalTrialDetails",
+          requestId,
+          response?.results?.length || 0,
+          mapped.length,
+          unique.length,
+          final
+        );
+
+        await track("Valyu API Call", {
+          toolType: "getClinicalTrialDetails",
           nctId: nctId,
           resultCount: response?.results?.length || 0,
           hasApiKey: !!apiKey,
           cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+          txId: (response as any)?.tx_id || null,
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'getClinicalTrialDetails',
+              "getClinicalTrialDetails",
               valyuCostDollars,
               {
                 nctId,
                 resultCount: response?.results?.length || 0,
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[GetClinicalTrialDetails] Failed to track Valyu API usage:', error);
+            console.error(
+              "[GetClinicalTrialDetails] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
         if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "clinical_trial_details",
-            nctId: nctId,
-            found: false,
-            message: `No clinical trial found with NCT ID: ${nctId}`
-          }, null, 2);
+          return JSON.stringify(
+            {
+              type: "clinical_trial_details",
+              nctId: nctId,
+              found: false,
+              message: `No clinical trial found with NCT ID: ${nctId}`,
+            },
+            null,
+            2
+          );
         }
 
         // Parse the full trial data
@@ -895,15 +1734,19 @@ ${execution.result || "(No output produced)"}
           trialData = JSON.parse(result.content);
         } catch (e) {
           // If parsing fails, return the raw content
-          return JSON.stringify({
-            type: "clinical_trial_details",
-            nctId: nctId,
-            found: true,
-            title: result.title,
-            url: result.url,
-            content: result.content,
-            note: "Raw content provided - parsing failed"
-          }, null, 2);
+          return JSON.stringify(
+            {
+              type: "clinical_trial_details",
+              nctId: nctId,
+              found: true,
+              title: result.title,
+              url: result.url,
+              content: result.content,
+              note: "Raw content provided - parsing failed",
+            },
+            null,
+            2
+          );
         }
 
         // Return the full parsed trial data
@@ -914,13 +1757,16 @@ ${execution.result || "(No output produced)"}
           title: result.title,
           url: result.url,
           data: trialData, // Full trial data
-          note: `Full details for clinical trial ${nctId}`
+          note: `Full details for clinical trial ${nctId}`,
         };
 
         return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -952,77 +1798,138 @@ ${execution.result || "(No output produced)"}
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable drug information search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         const searchOptions: any = {
           maxNumResults: maxResults || 5,
-          searchType: 'proprietary',
-          includedSources: ['valyu/valyu-drug-labels'],
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-drug-labels"],
           relevanceThreshold: 0.5,
           isToolCall: true,
-          responseLength: 'large',
+          responseLength: "large",
         };
+        if (searchOptions.includedSources?.sort)
+          searchOptions.includedSources.sort();
 
-        const response = await valyu.search(query, searchOptions);
+        // Use once() for deduplication/caching
+        const sessionKey = buildToolKey(
+          "drugInformationSearch",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "drugInformationSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'drugInformationSearch',
-          query: query,
-          maxResults: maxResults || 5,
-          resultCount: response?.results?.length || 0,
-          hasApiKey: !!apiKey,
-          cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+        // Attach deterministic IDs derived from setid or normalized URL
+        const mapped = (response?.results || []).map((r: any) => {
+          const key = r.metadata?.setid || normalizeUrl(r.url);
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Drug Information",
+            url: r.url,
+            content: r.content,
+            source: "valyu/valyu-drug-labels",
+            dataType: "drug label",
+            length: r.length,
+            relevance_score: r.relevance_score,
+          };
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+        logDedupe(
+          "drugInformationSearch",
+          requestId,
+          response?.results?.length || 0,
+          mapped.length,
+          unique.length,
+          final
+        );
+
+        await track("Valyu API Call", {
+          toolType: "drugInformationSearch",
+          query: query,
+          maxResults: maxResults || 5,
+          resultCount: final.length || 0,
+          hasApiKey: !!apiKey,
+          cost: (response as any)?.total_deduction_dollars || null,
+          txId: (response as any)?.tx_id || null,
+        });
+
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'drugInformationSearch',
+              "drugInformationSearch",
               valyuCostDollars,
               {
                 query,
-                resultCount: response?.results?.length || 0,
+                resultCount: final.length || 0,
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[DrugInformationSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[DrugInformationSearch] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
-        if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "drug_information",
-            query: query,
-            resultCount: 0,
-            results: [],
-            message: `No drug information found for "${query}". Try searching with the generic drug name or active ingredient.`
-          }, null, 2);
+        if (
+          !response ||
+          !response.results ||
+          response.results.length === 0 ||
+          final.length === 0
+        ) {
+          return JSON.stringify(
+            {
+              type: "drug_information",
+              query: query,
+              resultCount: 0,
+              results: [],
+              message: `No drug information found for "${query}". Try searching with the generic drug name or active ingredient.`,
+            },
+            null,
+            2
+          );
         }
 
         const formattedResponse = {
           type: "drug_information",
           query: query,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
+          resultCount: final.length,
+          results: final.map((result: any) => ({
+            id: result.id,
             title: result.title || "Drug Information",
             url: result.url,
             content: result.content,
-            source: "valyu/valyu-drug-labels",
-            dataType: "drug label",
+            source: result.source,
+            dataType: result.dataType,
             length: result.length,
             relevance_score: result.relevance_score,
           })),
@@ -1031,7 +1938,10 @@ ${execution.result || "(No output produced)"}
         return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -1061,26 +1971,33 @@ ${execution.result || "(No output produced)"}
       startDate: z
         .string()
         .optional()
-        .describe('Start date filter in MM-DD-YYYY format'),
+        .describe("Start date filter in MM-DD-YYYY format"),
       endDate: z
         .string()
         .optional()
-        .describe('End date filter in MM-DD-YYYY format'),
+        .describe("End date filter in MM-DD-YYYY format"),
     }),
     execute: async ({ query, maxResults, startDate, endDate }, options) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable biomedical literature search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
-        const includedSources = ['valyu/valyu-pubmed', 'valyu/valyu-arxiv', 'wiley/wiley-finance-papers', 'wiley/wiley-finance-books'];
+        const includedSources = [
+          "valyu/valyu-pubmed",
+          "valyu/valyu-arxiv",
+          "wiley/wiley-finance-papers",
+          "wiley/wiley-finance-books",
+        ];
+        includedSources.sort();
 
         const searchOptions: any = {
           maxNumResults: maxResults || 10,
@@ -1090,72 +2007,140 @@ ${execution.result || "(No output produced)"}
         if (startDate) searchOptions.startDate = startDate;
         if (endDate) searchOptions.endDate = endDate;
 
-        const response = await valyu.search(query, searchOptions);
+        const sessionKey = buildToolKey(
+          "biomedicalLiteratureSearch",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "biomedicalLiteratureSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'biomedicalLiteratureSearch',
-          query: query,
-          maxResults: maxResults || 10,
-          resultCount: response?.results?.length || 0,
-          hasApiKey: !!apiKey,
-          sources: includedSources?.join(',') || 'all',
-          cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+        const mapped = response.results.map((r: any) => {
+          const pmid = r.metadata?.pmid ? String(r.metadata.pmid) : undefined;
+          const doi =
+            extractDoi(r.metadata?.doi) ||
+            extractDoi(r.url) ||
+            extractDoi(r.content);
+          const arxiv = extractArxivId(r.url);
+          const normalized = normalizeUrl(r.url);
+          const key = pmid || doi || arxiv || normalized;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title,
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source || r.source,
+          };
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+        logDedupe(
+          "biomedicalLiteratureSearch",
+          requestId,
+          response?.results?.length || 0,
+          mapped.length,
+          unique.length,
+          final
+        );
+
+        await track("Valyu API Call", {
+          toolType: "biomedicalLiteratureSearch",
+          query: query,
+          maxResults: maxResults || 10,
+          resultCount: final.length || 0,
+          hasApiKey: !!apiKey,
+          sources: includedSources?.join(",") || "all",
+          cost: (response as any)?.total_deduction_dollars || null,
+          txId: (response as any)?.tx_id || null,
+        });
+
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'biomedicalLiteratureSearch',
+              "biomedicalLiteratureSearch",
               valyuCostDollars,
               {
                 query,
-                resultCount: response?.results?.length || 0,
-                sources: includedSources?.join(',') || 'all',
+                resultCount: final.length || 0,
+                sources: includedSources?.join(",") || "all",
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[BiomedicalLiteratureSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[BiomedicalLiteratureSearch] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
-        if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "biomedical_literature",
-            query: query,
-            resultCount: 0,
-            results: [],
-            message: `No biomedical literature found for "${query}". Try using different medical terminology or MeSH terms.`
-          }, null, 2);
+        // If no results, return empty result set with message
+        if (
+          !response ||
+          !response.results ||
+          response.results.length === 0 ||
+          final.length === 0
+        ) {
+          return JSON.stringify(
+            {
+              type: "biomedical_literature",
+              query: query,
+              resultCount: 0,
+              results: [],
+              message: `No biomedical literature found for "${query}". Try using different medical terminology or MeSH terms.`,
+            },
+            null,
+            2
+          );
         }
 
-        const formattedResponse = {
-          type: "biomedical_literature",
-          query: query,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
-            title: result.title || "Research Paper",
-            url: result.url,
-            content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source || result.source,
-            dataType: "literature",
-            length: result.length,
-            image_url: result.image_url || {},
-            relevance_score: result.relevance_score,
-          })),
-        };
-
-        return JSON.stringify(formattedResponse, null, 2);
+        // Return deduped, structured results
+        return JSON.stringify(
+          {
+            type: "biomedical_literature",
+            query,
+            resultCount: final.length,
+            results: final.map((result: any) => ({
+              id: result.id,
+              title: result.title || "Research Paper",
+              url: result.url,
+              content: result.content,
+              date: result.date,
+              source: result.source,
+              dataType: "literature",
+              length: result.length,
+              image_url: result.image_url || {},
+              relevance_score: result.relevance_score,
+            })),
+          },
+          null,
+          2
+        );
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -1181,7 +2166,9 @@ ${execution.result || "(No output produced)"}
       timePeriod: z
         .string()
         .optional()
-        .describe('Time period for analysis (e.g., "last 5 years", "during COVID", "2023")'),
+        .describe(
+          'Time period for analysis (e.g., "last 5 years", "during COVID", "2023")'
+        ),
       maxResults: z
         .number()
         .min(1)
@@ -1190,32 +2177,36 @@ ${execution.result || "(No output produced)"}
         .default(15)
         .describe("Maximum number of results to return"),
     }),
-    execute: async ({ company, dataTypes, timePeriod, maxResults }, options) => {
+    execute: async (
+      { company, dataTypes, timePeriod, maxResults },
+      options
+    ) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable pharma company analysis.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         const sources: string[] = [];
-        if (dataTypes.includes('sec_filings')) {
-          sources.push('valyu/valyu-sec-filings');
+        if (dataTypes.includes("sec_filings")) {
+          sources.push("valyu/valyu-sec-filings");
         }
-        if (dataTypes.includes('stock_price')) {
-          sources.push('valyu/valyu-stocks-US');
+        if (dataTypes.includes("stock_price")) {
+          sources.push("valyu/valyu-stocks-US");
         }
-        if (dataTypes.includes('earnings')) {
-          sources.push('valyu/valyu-earnings-US');
+        if (dataTypes.includes("earnings")) {
+          sources.push("valyu/valyu-earnings-US");
         }
-        
-        const query = `${company} ${timePeriod || ''}`.trim();
-        
+
+        const query = `${company} ${timePeriod || ""}`.trim();
+
         let searchOptions: any = {
           maxNumResults: maxResults || 15,
           relevanceThreshold: 0.4,
@@ -1223,71 +2214,130 @@ ${execution.result || "(No output produced)"}
         };
 
         if (sources.length > 0) {
-          searchOptions.searchType = 'proprietary';
+          sources.sort();
+          searchOptions.searchType = "proprietary";
           searchOptions.includedSources = sources;
-        } else if (dataTypes.includes('news')) {
-          searchOptions.searchType = 'all'; // Search both proprietary and web
+        } else if (dataTypes.includes("news")) {
+          searchOptions.searchType = "all"; // Search both proprietary and web
         }
 
-        const response = await valyu.search(query, searchOptions);
+        // Use once() for deduplication/caching
+        const sessionKey = buildToolKey(
+          "pharmaCompanyAnalysis",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "pharmaCompanyAnalysis",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'pharmaCompanyAnalysis',
-          query: query,
-          company: company,
-          dataTypes: dataTypes.join(','),
-          maxResults: maxResults || 15,
-          resultCount: response?.results?.length || 0,
-          hasApiKey: !!apiKey,
-          cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+        // pharmaCompanyAnalysis: normalized URL + date (or source+title)
+        const mapped = (response?.results || []).map((r: any) => {
+          const normalized = normalizeUrl(r.url);
+          const key =
+            normalized && r.metadata?.date
+              ? `${normalized}_${r.metadata?.date}`
+              : r.source && r.title
+              ? `${r.source}_${r.title.toLowerCase()}`
+              : normalized;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Company Data",
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source || r.source,
+            dataType: r.data_type,
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
+          };
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+
+        await track("Valyu API Call", {
+          toolType: "pharmaCompanyAnalysis",
+          query: query,
+          company: company,
+          dataTypes: dataTypes.join(","),
+          maxResults: maxResults || 15,
+          resultCount: final.length || 0,
+          hasApiKey: !!apiKey,
+          cost: (response as any)?.total_deduction_dollars || null,
+          txId: (response as any)?.tx_id || null,
+        });
+
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'pharmaCompanyAnalysis',
+              "pharmaCompanyAnalysis",
               valyuCostDollars,
               {
                 company,
-                dataTypes: dataTypes.join(','),
+                dataTypes: dataTypes.join(","),
                 resultCount: response?.results?.length || 0,
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[PharmaCompanyAnalysis] Failed to track Valyu API usage:', error);
+            console.error(
+              "[PharmaCompanyAnalysis] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
-        if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "pharma_company_analysis",
-            query: query,
-            company: company,
-            resultCount: 0,
-            results: [],
-            message: `No data found for "${company}". Ensure the company name is correct and try again.`
-          }, null, 2);
+        if (
+          !response ||
+          !response.results ||
+          response.results.length === 0 ||
+          final.length === 0
+        ) {
+          return JSON.stringify(
+            {
+              type: "pharma_company_analysis",
+              query: query,
+              company: company,
+              resultCount: 0,
+              results: [],
+              message: `No data found for "${company}". Ensure the company name is correct and try again.`,
+            },
+            null,
+            2
+          );
         }
 
         const formattedResponse = {
           type: "pharma_company_analysis",
           company: company,
           timePeriod: timePeriod,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
+          resultCount: final.length,
+          results: final.map((result: any) => ({
+            id: result.id,
             title: result.title || "Company Data",
             url: result.url,
             content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source || result.source,
-            dataType: result.data_type,
+            date: result.date,
+            source: result.source,
+            dataType: result.dataType,
             length: result.length,
             image_url: result.image_url || {},
             relevance_score: result.relevance_score,
@@ -1297,7 +2347,10 @@ ${execution.result || "(No output produced)"}
         return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -1345,106 +2398,172 @@ ${execution.result || "(No output produced)"}
         .default(20)
         .describe("Maximum number of results to return"),
     }),
-    execute: async ({ query, includeClinicalTrials, includeDrugLabels, includeLiterature, includeFinancial, maxResults }, options) => {
+    execute: async (
+      {
+        query,
+        includeClinicalTrials,
+        includeDrugLabels,
+        includeLiterature,
+        includeFinancial,
+        maxResults,
+      },
+      options
+    ) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         const apiKey = process.env.VALYU_API_KEY;
         if (!apiKey) {
           return "❌ Valyu API key not configured. Please add VALYU_API_KEY to your environment variables to enable comprehensive healthcare search.";
         }
-        const valyu = new Valyu(apiKey, "https://stage.api.valyu.network/v1");
+        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
 
         const sources: string[] = [];
-        
+
         if (includeClinicalTrials) {
-          sources.push('valyu/valyu-clinical-trials');
+          sources.push("valyu/valyu-clinical-trials");
         }
         if (includeDrugLabels) {
-          sources.push('valyu/valyu-drug-labels');
+          sources.push("valyu/valyu-drug-labels");
         }
         if (includeLiterature) {
-          sources.push('valyu/valyu-pubmed', 'valyu/valyu-arxiv');
+          sources.push("valyu/valyu-pubmed", "valyu/valyu-arxiv");
         }
         if (includeFinancial) {
-          sources.push('valyu/valyu-sec-filings', 'valyu/valyu-stocks-US');
+          sources.push("valyu/valyu-sec-filings", "valyu/valyu-stocks-US");
         }
 
         const searchOptions: any = {
           maxNumResults: maxResults || 20,
-          searchType: sources.length > 0 ? 'proprietary' : 'all',
+          searchType: sources.length > 0 ? "proprietary" : "all",
           relevanceThreshold: 0.4,
           isToolCall: true,
         };
 
         if (sources.length > 0) {
+          sources.sort();
           searchOptions.includedSources = sources;
         }
 
-        const response = await valyu.search(query, searchOptions);
+        // Use once() for deduplication/caching
+        const sessionKey = buildToolKey(
+          "comprehensiveHealthcareSearch",
+          query,
+          searchOptions
+        );
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "comprehensiveHealthcareSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
 
-        await track('Valyu API Call', {
-          toolType: 'comprehensiveHealthcareSearch',
-          query: query,
-          maxResults: maxResults || 20,
-          resultCount: response?.results?.length || 0,
-          hasApiKey: !!apiKey,
-          includedTypes: [
-            includeClinicalTrials && 'trials',
-            includeDrugLabels && 'drugs',
-            includeLiterature && 'literature',
-            includeFinancial && 'financial'
-          ].filter(Boolean).join(','),
-          cost: (response as any)?.total_deduction_dollars || null,
-          txId: (response as any)?.tx_id || null
+        // For comprehensiveHealthcareSearch, derive deterministic UUIDs from normalized URLs
+        const mapped = (response?.results || []).map((r: any) => {
+          const key = normalizeUrl(r.url);
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Healthcare Data",
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source || r.source,
+            dataType: r.data_type || "healthcare",
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
+          };
         });
 
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
+
+        await track("Valyu API Call", {
+          toolType: "comprehensiveHealthcareSearch",
+          query: query,
+          maxResults: maxResults || 20,
+          resultCount: final.length || 0,
+          hasApiKey: !!apiKey,
+          includedTypes: [
+            includeClinicalTrials && "trials",
+            includeDrugLabels && "drugs",
+            includeLiterature && "literature",
+            includeFinancial && "financial",
+          ]
+            .filter(Boolean)
+            .join(","),
+          cost: (response as any)?.total_deduction_dollars || null,
+          txId: (response as any)?.tx_id || null,
+        });
+
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'comprehensiveHealthcareSearch',
+              "comprehensiveHealthcareSearch",
               valyuCostDollars,
               {
                 query,
                 resultCount: response?.results?.length || 0,
-                includedTypes: sources.join(','),
+                includedTypes: sources.join(","),
                 success: true,
-                tx_id: (response as any)?.tx_id
+                tx_id: (response as any)?.tx_id,
               }
             );
           } catch (error) {
-            console.error('[ComprehensiveHealthcareSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[ComprehensiveHealthcareSearch] Failed to track Valyu API usage:",
+              error
+            );
           }
         }
 
-        if (!response || !response.results || response.results.length === 0) {
-          return JSON.stringify({
-            type: "comprehensive_healthcare",
-            query: query,
-            resultCount: 0,
-            results: [],
-            message: `No healthcare data found for "${query}". Try using more specific medical terms or adjusting search parameters.`
-          }, null, 2);
+        if (
+          !response ||
+          !response.results ||
+          response.results.length === 0 ||
+          final.length === 0
+        ) {
+          return JSON.stringify(
+            {
+              type: "comprehensive_healthcare",
+              query: query,
+              resultCount: 0,
+              results: [],
+              message: `No healthcare data found for "${query}". Try using more specific medical terms or adjusting search parameters.`,
+            },
+            null,
+            2
+          );
         }
 
         const formattedResponse = {
           type: "comprehensive_healthcare",
           query: query,
-          resultCount: response.results.length,
-          results: response.results.map((result: any) => ({
+          resultCount: final.length,
+          results: final.map((result: any) => ({
+            id: result.id,
             title: result.title || "Healthcare Data",
             url: result.url,
             content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source || result.source,
-            dataType: result.data_type || "healthcare",
+            date: result.date,
+            source: result.source,
+            dataType: result.dataType || "healthcare",
             length: result.length,
             image_url: result.image_url || {},
             relevance_score: result.relevance_score,
@@ -1454,7 +2573,10 @@ ${execution.result || "(No output produced)"}
         return JSON.stringify(formattedResponse, null, 2);
       } catch (error) {
         if (error instanceof Error) {
-          if (error.message.includes("401") || error.message.includes("unauthorized")) {
+          if (
+            error.message.includes("401") ||
+            error.message.includes("unauthorized")
+          ) {
             return "🔐 Invalid Valyu API key. Please check your VALYU_API_KEY environment variable.";
           }
         }
@@ -1486,13 +2608,14 @@ ${execution.result || "(No output produced)"}
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
-      
+      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
+      const requestId = (options as any)?.experimental_context?.requestId;
+
       try {
         // Initialize Valyu client (uses default/free tier if no API key)
         const valyu = new Valyu(
           process.env.VALYU_API_KEY,
-          "https://stage.api.valyu.network/v1"
+          "https://api.valyu.network/v1"
         );
 
         // Configure search options
@@ -1502,49 +2625,93 @@ ${execution.result || "(No output produced)"}
           isToolCall: true, // true for AI agents/tools
         };
 
-        const response = await valyu.search(query, searchOptions);
+        // Use per-session memo + in-flight dedupe
+        const sessionKey = buildToolKey("webSearch", query, searchOptions);
+        const response = await withSessionMemo(sessionId, sessionKey, () =>
+          once(
+            "webSearch",
+            canonQuery(query),
+            canonOptions(searchOptions),
+            () => valyu.search(query, searchOptions)
+          )
+        );
+
+        // Attach canonical id (DOI -> arXiv -> URL) mapped to deterministic UUIDs
+        const mapped = (response?.results || []).map((r: any) => {
+          const doi = extractDoi(r.url) || extractDoi(r.content);
+          const arxiv = extractArxivId(r.url);
+          const normalized = normalizeUrl(r.url);
+          const key = doi || arxiv || normalized;
+          return {
+            id: key ? keyToUuid(key) : resultId(r),
+            title: r.title || "Web Result",
+            url: r.url,
+            content: r.content,
+            date: r.metadata?.date,
+            source: r.metadata?.source,
+            dataType: r.data_type,
+            length: r.length,
+            image_url: r.image_url || {},
+            relevance_score: r.relevance_score,
+          };
+        });
+
+        const unique = dedupeBy(mapped, (x) => x.id);
+        const final = dedupeAgainstRequest(requestId, unique, (x) => x.id);
 
         // Track Valyu web search call
-        await track('Valyu API Call', {
-          toolType: 'webSearch',
+        await track("Valyu API Call", {
+          toolType: "webSearch",
           query: query,
           maxResults: maxResults || 5,
-          resultCount: response?.results?.length || 0,
+          resultCount: final.length || 0,
           hasApiKey: !!process.env.VALYU_API_KEY,
-          cost: (response as any)?.metadata?.totalCost || (response as any)?.total_deduction_dollars || null,
+          cost:
+            (response as any)?.metadata?.totalCost ||
+            (response as any)?.total_deduction_dollars ||
+            null,
           searchTime: (response as any)?.metadata?.searchTime || null,
-          txId: (response as any)?.tx_id || null
+          txId: (response as any)?.tx_id || null,
         });
 
         // Track usage for pay-per-use customers with Polar events
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+        if (
+          userId &&
+          sessionId &&
+          userTier === "pay_per_use" &&
+          !isDevelopment
+        ) {
           try {
             const polarTracker = new PolarEventTracker();
             // Use the actual Valyu API cost from response
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            
-            console.log('[WebSearch] Tracking Valyu API usage with Polar:', {
+            const valyuCostDollars =
+              (response as any)?.total_deduction_dollars || 0;
+
+            console.log("[WebSearch] Tracking Valyu API usage with Polar:", {
               userId,
               sessionId,
               valyuCostDollars,
-              resultCount: response?.results?.length || 0
+              resultCount: response?.results?.length || 0,
             });
-            
+
             await polarTracker.trackValyuAPIUsage(
               userId,
               sessionId,
-              'webSearch',
+              "webSearch",
               valyuCostDollars,
               {
                 query,
                 resultCount: response?.results?.length || 0,
                 success: true,
                 tx_id: (response as any)?.tx_id,
-                search_time: (response as any)?.metadata?.searchTime
+                search_time: (response as any)?.metadata?.searchTime,
               }
             );
           } catch (error) {
-            console.error('[WebSearch] Failed to track Valyu API usage:', error);
+            console.error(
+              "[WebSearch] Failed to track Valyu API usage:",
+              error
+            );
             // Don't fail the search if usage tracking fails
           }
         }
@@ -1555,7 +2722,12 @@ ${execution.result || "(No output produced)"}
           JSON.stringify(response, null, 2)
         );
 
-        if (!response || !response.results || response.results.length === 0) {
+        if (
+          !response ||
+          !response.results ||
+          response.results.length === 0 ||
+          final.length === 0
+        ) {
           return `🔍 No web results found for "${query}". Try rephrasing your search with different keywords.`;
         }
 
@@ -1563,30 +2735,34 @@ ${execution.result || "(No output produced)"}
         const metadata = (response as any).metadata;
         console.log("[Web Search] Summary:", {
           query,
-          resultCount: response.results.length,
-          totalCost: metadata?.totalCost || (response as any).total_deduction_dollars || "N/A",
+          resultCount: final.length,
+          totalCost:
+            metadata?.totalCost ||
+            (response as any).total_deduction_dollars ||
+            "N/A",
           searchTime: metadata?.searchTime || "N/A",
           txId: (response as any).tx_id || "N/A",
-          firstResultTitle: response.results[0]?.title,
-          firstResultLength: response.results[0]?.length,
+          firstResultTitle: final[0]?.title,
+          firstResultLength: final[0]?.length,
         });
 
         // Return structured data for the model to process
         const formattedResponse = {
           type: "web_search",
           query: query,
-          resultCount: response.results.length,
+          resultCount: final.length,
           metadata: {
             totalCost: metadata?.totalCost,
             searchTime: metadata?.searchTime,
           },
-          results: response.results.map((result: any) => ({
+          results: final.map((result: any) => ({
+            id: result.id,
             title: result.title || "Web Result",
             url: result.url,
             content: result.content,
-            date: result.metadata?.date,
-            source: result.metadata?.source,
-            dataType: result.data_type,
+            date: result.date,
+            source: result.source,
+            dataType: result.dataType,
             length: result.length,
             image_url: result.image_url || {},
             relevance_score: result.relevance_score,
