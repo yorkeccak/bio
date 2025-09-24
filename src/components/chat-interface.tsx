@@ -582,6 +582,9 @@ export const SearchResultCard = ({
       );
     }
 
+    // Hide save button if user is not signed in
+    if (!user) return null;
+
     return (
       <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
         <DropdownMenuTrigger asChild>

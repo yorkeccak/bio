@@ -675,6 +675,112 @@ export const healthcareTools = {
         hasDescription: !!description,
       });
 
+      // Enhanced date parsing for multiple formats (same logic as FinancialChart)
+      const parseDate = (dateStr: string | number): Date | null => {
+        if (typeof dateStr === "number") return new Date(dateStr);
+
+        // Try multiple date formats in order of preference
+        const formats = [
+          // ISO format (YYYY-MM-DD, YYYY-MM-DDTHH:mm:ss, etc.)
+          (str: string) => {
+            const date = new Date(str);
+            return !isNaN(date.getTime()) ? date : null;
+          },
+          // YYYY-MM-DD format
+          (str: string) => {
+            const match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+            if (match) {
+              const [, year, month, day] = match;
+              return new Date(
+                parseInt(year),
+                parseInt(month) - 1,
+                parseInt(day)
+              );
+            }
+            return null;
+          },
+          // DD/MM/YYYY format (common in European/international contexts)
+          (str: string) => {
+            const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (match) {
+              const [, day, month, year] = match;
+              const dayNum = parseInt(day);
+              const monthNum = parseInt(month);
+              const yearNum = parseInt(year);
+
+              // Validate that day <= 31 and month <= 12 (basic validation)
+              if (dayNum <= 31 && monthNum <= 12) {
+                const parsedDate = new Date(yearNum, monthNum - 1, dayNum);
+                // Additional validation: check if the parsed date components match
+                if (
+                  parsedDate.getDate() === dayNum &&
+                  parsedDate.getMonth() === monthNum - 1
+                ) {
+                  return parsedDate;
+                }
+              }
+            }
+            return null;
+          },
+          // MM/DD/YYYY format (common in US contexts)
+          (str: string) => {
+            const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+            if (match) {
+              const [, month, day, year] = match;
+              const monthNum = parseInt(month);
+              const dayNum = parseInt(day);
+              const yearNum = parseInt(year);
+
+              // Validate that month <= 12 and day <= 31 (basic validation)
+              if (monthNum <= 12 && dayNum <= 31) {
+                const parsedDate = new Date(yearNum, monthNum - 1, dayNum);
+                // Additional validation: check if the parsed date components match
+                if (
+                  parsedDate.getMonth() === monthNum - 1 &&
+                  parsedDate.getDate() === dayNum
+                ) {
+                  return parsedDate;
+                }
+              }
+            }
+            return null;
+          },
+        ];
+
+        for (const format of formats) {
+          try {
+            const date = format(dateStr);
+            if (date && !isNaN(date.getTime())) {
+              return date;
+            }
+          } catch (e) {
+            // Continue to next format
+          }
+        }
+        return null;
+      };
+
+      // Sort data series by x-axis values (dates) to ensure chronological order
+      const sortedDataSeries = dataSeries.map((series) => ({
+        ...series,
+        data: [...series.data].sort((a, b) => {
+          // Sort by x value (handles both strings and numbers)
+          if (typeof a.x === "string" && typeof b.x === "string") {
+            const dateA = parseDate(a.x);
+            const dateB = parseDate(b.x);
+
+            // If both are valid dates, sort chronologically (earliest first)
+            if (dateA && dateB) {
+              return dateA.getTime() - dateB.getTime();
+            }
+
+            // Fallback to string comparison for non-date strings
+            return a.x.localeCompare(b.x);
+          }
+          return Number(a.x) - Number(b.x);
+        }),
+      }));
+
       // Log chart creation details
       console.log("[Chart Creation] Creating chart:", {
         title,
@@ -687,6 +793,7 @@ export const healthcareTools = {
           0
         ),
         seriesNames: dataSeries.map((s) => s.name),
+        dataSorted: true,
       });
 
       // Return structured chart data for the UI to render
@@ -695,7 +802,7 @@ export const healthcareTools = {
         title,
         xAxisLabel,
         yAxisLabel,
-        dataSeries,
+        dataSeries: sortedDataSeries,
         description,
         metadata: {
           totalSeries: dataSeries.length,
@@ -704,10 +811,12 @@ export const healthcareTools = {
             0
           ),
           dateRange:
-            dataSeries.length > 0 && dataSeries[0].data.length > 0
+            sortedDataSeries.length > 0 && sortedDataSeries[0].data.length > 0
               ? {
-                  start: dataSeries[0].data[0].x,
-                  end: dataSeries[0].data[dataSeries[0].data.length - 1].x,
+                  start: sortedDataSeries[0].data[0].x,
+                  end: sortedDataSeries[0].data[
+                    sortedDataSeries[0].data.length - 1
+                  ].x,
                 }
               : null,
         },

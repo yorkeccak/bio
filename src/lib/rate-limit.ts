@@ -14,7 +14,7 @@ export interface RateLimitResult {
 
 // Constants for rate limiting
 const ANONYMOUS_LIMIT = 3;
-const FREE_LIMIT = 5;
+const FREE_LIMIT = 999999;
 const UNLIMITED_LIMIT = 999999;
 
 // Obfuscated cookie name
