@@ -435,6 +435,7 @@ export async function POST(req: Request) {
          - Look up drug information using the drugInformationSearch tool (FDA labels, contraindications, side effects, drug interactions)
          - Search biomedical literature using the biomedicalLiteratureSearch tool (PubMed, ArXiv, peer-reviewed papers)
          - Analyze pharmaceutical companies using the pharmaCompanyAnalysis tool (SEC filings, financial data, competitive intelligence)
+           - **CRITICAL: When searching for SEC filings, ONLY search for 10-K, 10-Q, or 8-K filings. Do NOT search for any other types of SEC filings. If the user's request is not specifically about 10-K, 10-Q, or 8-K, do NOT make a tool call for SEC filings.**
          - Perform comprehensive healthcare searches using the comprehensiveHealthcareSearch tool (across all medical data sources)  
          - Search the web for general healthcare news, medical breakthroughs, and health policy updates using the webSearch tool
          - Search the web for general information using the web search tool (any topic with relevance scoring and cost control)
@@ -544,6 +545,7 @@ export async function POST(req: Request) {
          Choose the drugInformationSearch tool for FDA drug labels and medication information.
          Choose the biomedicalLiteratureSearch tool for scientific papers and research studies.
          Choose the pharmaCompanyAnalysis tool for pharmaceutical company analysis and competitive intelligence.
+           - **IMPORTANT: For SEC filings, ONLY search for 10-K, 10-Q, or 8-K filings. Do NOT search for any other SEC filing types. If the user's request is not about 10-K, 10-Q, or 8-K, do NOT make a tool call for SEC filings.**
          Choose the comprehensiveHealthcareSearch tool when you need data from multiple healthcare sources.
          Choose the web search tool for general topics, current events, research, and non-financial information.
          Choose the chart creation tool when users want to visualize data, compare metrics, or see trends over time.
