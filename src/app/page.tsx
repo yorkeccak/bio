@@ -693,9 +693,11 @@ function HomeContent() {
             </DropdownMenuContent>
           </DropdownMenu>
         ) : (
-          <Button onClick={() => setShowAuthModal(true)} size="sm">
-            Sign In
-          </Button>
+          // Sign In button hidden
+          null
+          // <Button onClick={() => setShowAuthModal(true)} size="sm">
+          //   Sign In
+          // </Button>
         )}
       </div>
 
