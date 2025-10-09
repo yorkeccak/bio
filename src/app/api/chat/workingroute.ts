@@ -1,6 +1,6 @@
 import { streamText, convertToModelMessages } from "ai";
-import { healthcareTools } from "@/lib/tools";
-import { HealthcareUIMessage } from "@/lib/types";
+import { financeTools } from "@/lib/tools";
+import { FinanceUIMessage } from "@/lib/types";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { createOllama, ollama } from "ollama-ai-provider-v2";
 import { checkAnonymousRateLimit, incrementRateLimit } from "@/lib/rate-limit";
@@ -8,94 +8,20 @@ import { createClient } from "@supabase/supabase-js";
 import { checkUserRateLimit } from "@/lib/rate-limit";
 import { validateAccess } from "@/lib/polar-access-validation";
 import { getPolarTrackedModel } from "@/lib/polar-llm-strategy";
-import { randomUUID } from "node:crypto";
 
 // Allow streaming responses up to 120 seconds
 export const maxDuration = 180;
 
 export async function POST(req: Request) {
   try {
-    let requestData;
-    try {
-      requestData = await req.json();
-    } catch (jsonError) {
-      console.error("[Chat API] JSON parsing error:", jsonError);
-      return new Response(
-        JSON.stringify({ error: "Invalid JSON in request body" }),
-        {
-          status: 400,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
-    }
-
     const {
       messages,
       sessionId,
-      attachments,
-    }: {
-      messages: HealthcareUIMessage[];
-      sessionId?: string;
-      attachments?: any[];
-    } = requestData;
+    }: { messages: FinanceUIMessage[]; sessionId?: string } = await req.json();
     console.log(
       "[Chat API] Incoming messages:",
       JSON.stringify(messages, null, 2)
     );
-
-    // If attachments are present, decode and append them to the last user message as AI SDK parts
-    try {
-      if (
-        Array.isArray(attachments) &&
-        attachments.length > 0 &&
-        Array.isArray(messages) &&
-        messages.length > 0
-      ) {
-        const lastIdx = messages.map((m: any) => m.role).lastIndexOf("user");
-        const targetIdx = lastIdx >= 0 ? lastIdx : messages.length - 1;
-        const target = messages[targetIdx] as any;
-
-        const decodedParts = attachments.map((att: any) => {
-          const data = Buffer.from(att.dataBase64 || "", "base64");
-          if (att.kind === "image") {
-            return {
-              type: "image",
-              image: data,
-              mimeType: att.mediaType || "image/png",
-            };
-          }
-          return {
-            type: "file",
-            data,
-            mediaType: att.mediaType || "application/octet-stream",
-            filename: att.name || undefined,
-          };
-        });
-
-        // Create a new message object instead of mutating the existing one
-        const updatedMessage = { ...target };
-        
-        if (Array.isArray(target.parts)) {
-          updatedMessage.parts = [...target.parts, ...decodedParts];
-        } else if (typeof target.content === "string") {
-          updatedMessage.parts = [
-            { type: "text", text: target.content },
-            ...decodedParts,
-          ];
-          delete updatedMessage.content;
-        } else if (Array.isArray(target.content)) {
-          // Some formats may already be content array
-          updatedMessage.content = [...target.content, ...decodedParts];
-        } else {
-          updatedMessage.parts = decodedParts;
-        }
-        
-        // Replace the message in the array with the new object
-        messages[targetIdx] = updatedMessage;
-      }
-    } catch (e) {
-      console.warn("Failed to merge attachments into message", e);
-    }
 
     // Determine if this is a user-initiated message (should count towards rate limit)
     // ONLY increment for the very first user message in a conversation
@@ -234,59 +160,92 @@ export async function POST(req: Request) {
     let modelInfo: string;
 
     if (isDevelopment) {
-      // Development mode: Use OpenAI by default, only use Ollama when explicitly requested
-      const userPreferredModel = req.headers.get("x-ollama-model");
+      // Development mode: Try to use Ollama first, fallback to OpenAI
+      try {
+        // Try to connect to Ollama first
+        const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`, {
+          method: "GET",
+          signal: AbortSignal.timeout(3000), // 3 second timeout
+        });
 
-      if (userPreferredModel) {
-        // User explicitly wants to use Ollama - check if it's available
-        try {
-          const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`, {
-            method: "GET",
-            signal: AbortSignal.timeout(3000), // 3 second timeout
-          });
+        if (ollamaResponse.ok) {
+          const data = await ollamaResponse.json();
+          const models = data.models || [];
 
-          if (ollamaResponse.ok) {
-            const data = await ollamaResponse.json();
-            const models = data.models || [];
+          if (models.length > 0) {
+            // Prioritize Llama 3.1 which is explicitly listed as supporting tools
+            const preferredModels = [
+              "llama3.1",
+              "gemma3:4b",
+              "gemma3",
+              "llama3.2",
+              "llama3",
+              "qwen2.5",
+              "codestral",
+              "deepseek-r1",
+            ];
+            let selectedModelName = models[0].name;
 
-            if (models.some((m: any) => m.name === userPreferredModel)) {
-              console.log(
-                `[Chat API] Using requested Ollama model: ${userPreferredModel}`
-              );
+            // Check if user has a specific model preference from the request
+            const userPreferredModel = req.headers.get("x-ollama-model");
 
-              const ollamaAsOpenAI = createOpenAI({
-                baseURL: `${ollamaBaseUrl}/v1`,
-                apiKey: "ollama",
-              });
-
-              selectedModel = ollamaAsOpenAI.chat(userPreferredModel);
-              modelInfo = `Ollama (${userPreferredModel}) - Development Mode`;
+            // Try to find a preferred model
+            if (
+              userPreferredModel &&
+              models.some((m: any) => m.name === userPreferredModel)
+            ) {
+              selectedModelName = userPreferredModel;
             } else {
-              throw new Error(
-                `Requested model ${userPreferredModel} not found in Ollama`
-              );
+              for (const preferred of preferredModels) {
+                if (models.some((m: any) => m.name.includes(preferred))) {
+                  selectedModelName = models.find((m: any) =>
+                    m.name.includes(preferred)
+                  )?.name;
+                  break;
+                }
+              }
             }
-          } else {
-            throw new Error(
-              `Ollama API responded with status ${ollamaResponse.status}`
+
+            // Debug: Log the exact configuration
+            console.log(
+              `[Chat API] Attempting to configure Ollama with baseURL: ${ollamaBaseUrl}/v1`
             );
+            console.log(`[Chat API] Selected model name: ${selectedModelName}`);
+
+            // Use OpenAI provider and explicitly create a chat model (not responses model)
+            const ollamaAsOpenAI = createOpenAI({
+              baseURL: `${ollamaBaseUrl}/v1`, // This should hit /v1/chat/completions
+              apiKey: "ollama", // Dummy API key for Ollama
+            });
+
+            // Create a chat model explicitly
+            selectedModel = ollamaAsOpenAI.chat(selectedModelName);
+            modelInfo = `Ollama (${selectedModelName}) - Development Mode`;
+            console.log(
+              `[Chat API] Created model with provider:`,
+              typeof selectedModel
+            );
+            console.log(
+              `[Chat API] Model baseURL should be: ${ollamaBaseUrl}/v1`
+            );
+          } else {
+            throw new Error("No models available in Ollama");
           }
-        } catch (error) {
-          console.log(
-            "[Chat API] Requested Ollama model not available, falling back to OpenAI:",
-            error
+        } else {
+          throw new Error(
+            `Ollama API responded with status ${ollamaResponse.status}`
           );
-          selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-          modelInfo = hasOpenAIKey
-            ? "OpenAI (gpt-5) - Development Mode (Ollama Fallback)"
-            : 'Vercel AI Gateway ("gpt-5") - Development Mode (Ollama Fallback)';
         }
-      } else {
-        // Default to OpenAI in development mode
+      } catch (error) {
+        console.log(
+          "[Chat API] Ollama not available, falling back to OpenAI:",
+          error
+        );
+        // Fallback to OpenAI in development mode
         selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
         modelInfo = hasOpenAIKey
-          ? "OpenAI (gpt-5) - Development Mode Default"
-          : 'Vercel AI Gateway ("gpt-5") - Development Mode Default';
+          ? "OpenAI (gpt-5) - Development Mode Fallback"
+          : 'Vercel AI Gateway ("gpt-5") - Development Mode Fallback';
       }
     } else {
       // Production mode: Use Polar-wrapped OpenAI ONLY for pay-per-use users
@@ -343,30 +302,12 @@ export async function POST(req: Request) {
         "[Chat API] Attempting to save user message to session:",
         sessionId
       );
-      console.log("[Chat API] User ID:", user.id);
       console.log("[Chat API] Message to save:", messages[messages.length - 1]);
-      console.log("[Chat API] Supabase client created:", !!supabase);
-      console.log("[Chat API] Message format check:", {
-        hasRole: !!messages[messages.length - 1]?.role,
-        hasContent: !!(messages[messages.length - 1] as any)?.content,
-        hasParts: !!messages[messages.length - 1]?.parts,
-        messageKeys: Object.keys(messages[messages.length - 1] || {}),
-      });
-
-      try {
-        await saveMessageToSession(
-          supabase,
-          sessionId,
-          messages[messages.length - 1]
-        );
-        console.log("[Chat API] Message save attempt completed");
-      } catch (error) {
-        console.error("[Chat API] Error during message save:", error);
-        console.error(
-          "[Chat API] Error stack:",
-          error instanceof Error ? error.stack : "No stack trace"
-        );
-      }
+      await saveMessageToSession(
+        supabase,
+        sessionId,
+        messages[messages.length - 1]
+      );
     } else {
       console.log(
         "[Chat API] Not saving message - user:",
@@ -374,12 +315,6 @@ export async function POST(req: Request) {
         "sessionId:",
         sessionId
       );
-      if (!user) {
-        console.log("[Chat API] No user found for message saving");
-      }
-      if (!sessionId) {
-        console.log("[Chat API] No sessionId found for message saving");
-      }
     }
 
     console.log(
@@ -391,7 +326,7 @@ export async function POST(req: Request) {
     const result = streamText({
       model: selectedModel as any,
       messages: convertToModelMessages(messages),
-      tools: healthcareTools,
+      tools: financeTools,
       toolChoice: "auto",
       experimental_context: {
         userId: user?.id,
@@ -406,7 +341,7 @@ export async function POST(req: Request) {
           include: ["reasoning.encrypted_content"],
         },
       },
-      system: `You are a specialized healthcare and biomedical AI assistant with access to comprehensive tools for clinical trials, drug information, biomedical literature, pharmaceutical analysis, Python code execution, and data visualization.
+      system: `You are a helpful assistant with access to comprehensive tools for Python code execution, financial data, web search, academic research, and data visualization.
       
       CRITICAL CITATION INSTRUCTIONS:
       When you use ANY search tool (financial, web, or Wiley academic search) and reference information from the results in your response:
@@ -428,38 +363,34 @@ export async function POST(req: Request) {
       
       You can:
          
-         - Execute Python code for biostatistics, clinical data analysis, drug discovery calculations, and scientific computations using the codeExecution tool (runs in a secure Daytona Sandbox)
+         - Execute Python code for financial modeling, complex calculations, data analysis, and mathematical computations using the codeExecution tool (runs in a secure Daytona Sandbox)
          - The Python environment can install packages via pip at runtime inside the sandbox (e.g., numpy, pandas, scikit-learn)
          - Visualization libraries (matplotlib, seaborn, plotly) may work inside Daytona. However, by default, prefer the built-in chart creation tool for standard time series and comparisons. Use Daytona for advanced or custom visualizations only when necessary.
-         - Search for clinical trials data using the clinicalTrialsSearch tool (ongoing trials, completed studies, drug efficacy data)
-         - Look up drug information using the drugInformationSearch tool (FDA labels, contraindications, side effects, drug interactions)
-         - Search biomedical literature using the biomedicalLiteratureSearch tool (PubMed, ArXiv, peer-reviewed papers)
-         - Analyze pharmaceutical companies using the pharmaCompanyAnalysis tool (SEC filings, financial data, competitive intelligence)
-         - Perform comprehensive healthcare searches using the comprehensiveHealthcareSearch tool (across all medical data sources)  
-         - Search the web for general healthcare news, medical breakthroughs, and health policy updates using the webSearch tool
+         - Search for real-time financial data using the financial search tool (market data, earnings reports, SEC filings, financial news, regulatory updates)  
+         - Search academic finance literature using the Wiley search tool (peer-reviewed papers, academic journals, textbooks, and scholarly research)
          - Search the web for general information using the web search tool (any topic with relevance scoring and cost control)
          - Create interactive charts and visualizations using the chart creation tool (line charts, bar charts, area charts with multiple data series)
 
       **CRITICAL NOTE**: You must only make max 5 parallel tool calls at a time.
 
       **CRITICAL INSTRUCTIONS**: Your reports must be incredibly thorough and detailed, explore everything that is relevant to the user's query that will help to provide
-      the perfect response that is of a level expected of an elite level medical researcher or pharmaceutical analyst at a leading biomedical research institution.
+      the perfect response that is of a level expected of a elite level professional financial analyst for the leading financial research firm in the world.
       
-      For healthcare data searches, you can access:
-      • Clinical trials from ClinicalTrials.gov (phases, enrollment, outcomes)
-      • FDA drug labels and medication information from DailyMed
-      • Biomedical literature from PubMed and ArXiv
-      • Pharmaceutical company SEC filings and financial reports
-      • Scientific research papers and peer-reviewed studies
-      • Drug development pipelines and regulatory approvals
+      For financial data searches, you can access:
+      • Real-time stock prices, crypto rates, and forex data
+      • Quarterly and annual earnings reports
+      • SEC filings (10-K, 10-Q, 8-K documents)  
+      • Financial news from Bloomberg, Reuters, WSJ
+      • Regulatory updates from SEC, Federal Reserve
+      • Market intelligence and insider trading data
       
-      For biomedical literature searches, you can access:
-      • Peer-reviewed medical and biological journals
-      • Clinical research studies and meta-analyses
-      • Drug discovery and development papers
-      • Genomics and precision medicine research
-      • Epidemiological studies and public health data
-      • Medical device trials and regulatory submissions
+      For Wiley academic searches, you can access:
+      • Peer-reviewed finance and economics journals
+      • Academic textbooks and scholarly publications
+      • Quantitative finance research papers
+      • Advanced financial modeling methodologies
+      • Academic studies on options pricing, derivatives, risk management
+      • Theoretical finance concepts and mathematical frameworks
       
                For web searches, you can find information on:
          • Current events and news from any topic
@@ -469,22 +400,22 @@ export async function POST(req: Request) {
          • General knowledge across all domains
          
          For data visualization, you can create charts when users want to:
-         • Compare clinical trial outcomes across different drugs or treatments
-         • Visualize patient enrollment, efficacy rates, or adverse events over time
-         • Display drug development pipeline stages or trial phase progression
+         • Compare multiple stocks, cryptocurrencies, or financial metrics
+         • Visualize historical trends over time (earnings, revenue, stock prices)
+         • Display portfolio performance or asset allocation
          • Show relationships between different data series
-         • Present clinical or research data in an easy-to-understand visual format
+         • Present financial data in an easy-to-understand visual format
 
-         Whenever you have time series data for the user (such as patient outcomes, drug efficacy over time, or any clinical data with temporal values), always visualize it using the chart creation tool. Use a line chart by default for time series data, unless another chart type is more appropriate for the context. If you retrieve or generate time series data, automatically create a chart to help the user understand trends and patterns.
+         Whenever you have time series data for the user (such as stock prices, historical financial metrics, or any data with values over time), always visualize it using the chart creation tool. Use a line chart by default for time series data, unless another chart type is more appropriate for the context. If you retrieve or generate time series data, automatically create a chart to help the user understand trends and patterns.
 
          CRITICAL: When using the createChart tool, you MUST format the dataSeries exactly like this:
          dataSeries: [
            {
-             name: "Drug A Efficacy",
+             name: "Apple (AAPL)",
              data: [
-               {x: "Week 0", y: 0},
-               {x: "Week 4", y: 45.5},
-               {x: "Week 8", y: 67.8}
+               {x: "2024-01-01", y: 150.25},
+               {x: "2024-02-01", y: 155.80},
+               {x: "2024-03-01", y: 162.45}
              ]
            }
          ]
@@ -492,8 +423,8 @@ export async function POST(req: Request) {
          Each data point requires an x field (date/label) and y field (numeric value). Do NOT use other formats like "datasets" or "labels" - only use the dataSeries format shown above.
 
          When creating charts:
-         • Use line charts for time series data (patient outcomes, drug efficacy over time)
-         • Use bar charts for comparisons between categories (drug effectiveness, adverse event rates)
+         • Use line charts for time series data (stock prices, trends over time)
+         • Use bar charts for comparisons between categories (quarterly earnings, different stocks)
          • Use area charts for cumulative data or when showing composition
          • Always provide meaningful titles and axis labels
          • Support multiple data series when comparing related metrics
@@ -540,11 +471,8 @@ export async function POST(req: Request) {
          NEVER write LaTeX code directly in text like \frac{r}{n} or \times - it must be inside <math> tags.
          NEVER use $ or $$ delimiters - only use <math>...</math> tags.
          This makes financial formulas much more readable and professional.
-         Choose the clinicalTrialsSearch tool for clinical trial data and study protocols.
-         Choose the drugInformationSearch tool for FDA drug labels and medication information.
-         Choose the biomedicalLiteratureSearch tool for scientific papers and research studies.
-         Choose the pharmaCompanyAnalysis tool for pharmaceutical company analysis and competitive intelligence.
-         Choose the comprehensiveHealthcareSearch tool when you need data from multiple healthcare sources.
+         Choose the financial search tool specifically for financial markets, companies, and economic data.
+         Choose the Wiley search tool for academic finance research, peer-reviewed studies, theoretical concepts, advanced quantitative methods, options pricing models, academic textbooks, and scholarly papers.
          Choose the web search tool for general topics, current events, research, and non-financial information.
          Choose the chart creation tool when users want to visualize data, compare metrics, or see trends over time.
 
@@ -596,10 +524,10 @@ export async function POST(req: Request) {
          - Format numbers with proper comma separators (e.g., $1,234,567)
          - Include percentage changes and comparisons
          - Example:
-         | Metric | Control | Treatment | P-Value |
-         |--------|---------|-----------|----------|
-         | Response Rate | 32.5% | 67.8% | <0.001 |
-         | Adverse Events | 8.2% | 12.4% | 0.042 |
+         | Metric | 2020 | 2021 | Change (%) |
+         |--------|------|------|------------|
+         | Revenue | $41.9B | $81.3B | +94.0% |
+         | EPS | $2.22 | $6.45 | +190.5% |
 
       3. **Mathematical Formulas:**
          - Always use <math> tags for any mathematical expressions
@@ -643,17 +571,10 @@ export async function POST(req: Request) {
          - Each unique search result gets ONE citation number used consistently
          - Citations are MANDATORY for:
            • Specific numbers, statistics, percentages
-           • Clinical trial results and drug efficacy data  
+           • Company financials and metrics  
            • Quotes or paraphrased statements
            • Market data and trends
            • Any factual claims from search results
-         
-         **CRITICAL for Clinical Trials:**
-         - EVERY clinical trial mentioned MUST have an inline citation [N]
-         - When citing clinical trials, use format: "The trial showed X result [1]" or "NCT04132960 demonstrated Y [2]"
-         - Each NCT ID mentioned should have its corresponding citation immediately after
-         - When using getClinicalTrialDetails, cite the detailed information retrieved
-         - Example: "The Phase 3 RECOVERY trial (NCT04381936) enrolled over 40,000 patients [1] and demonstrated that dexamethasone reduced mortality by 17% [1]."
       ---
       `,
     });
@@ -758,78 +679,37 @@ async function saveMessageToSession(
 ) {
   try {
     console.log(
-      "[saveMessageToSession] Starting save process for sessionId:",
-      sessionId
-    );
-    console.log(
       "[saveMessageToSession] Raw message:",
       JSON.stringify(message, null, 2)
     );
 
-    // Validate required fields
-    if (!sessionId) {
-      console.error("[saveMessageToSession] No sessionId provided");
-      return;
-    }
-    if (!message || !message.role) {
-      console.error("[saveMessageToSession] Invalid message format:", message);
-      return;
-    }
+    // Handle different message formats
+    let content = [];
 
-    // Normalize message content into parts for consistent storage
-    let parts: any[] = [];
-    if (Array.isArray(message.parts)) {
+    if (message.parts) {
       console.log("[saveMessageToSession] Using message.parts");
-      parts = message.parts;
+      content = message.parts;
     } else if (message.content) {
       console.log("[saveMessageToSession] Using message.content");
-      parts =
-        typeof message.content === "string"
-          ? [{ type: "text", text: message.content }]
-          : Array.isArray(message.content)
-          ? message.content
-          : [];
-    } else if (typeof message.text === "string") {
+      // If content is a string, wrap it in a text part
+      if (typeof message.content === "string") {
+        content = [{ type: "text", text: message.content }];
+      } else {
+        content = message.content;
+      }
+    } else if (message.text) {
       console.log("[saveMessageToSession] Using message.text");
-      parts = [{ type: "text", text: message.text }];
+      content = [{ type: "text", text: message.text }];
     } else {
-      console.log(
-        "[saveMessageToSession] No recognized content field found; inserting placeholder"
-      );
-      parts = [{ type: "text", text: "No content found" }];
+      console.log("[saveMessageToSession] No recognized content field found");
     }
 
-    const contextResources =
-      (message as any)?.contextResources &&
-      Array.isArray((message as any).contextResources)
-        ? (message as any).contextResources
-        : null;
-
-    const existingTokenUsage =
-      (message as any)?.token_usage || (message as any)?.tokenUsage || null;
-
-    const tokenUsagePayload =
-      existingTokenUsage || contextResources
-        ? {
-            ...(typeof existingTokenUsage === "object" &&
-            existingTokenUsage !== null
-              ? existingTokenUsage
-              : existingTokenUsage != null
-              ? { value: existingTokenUsage }
-              : {}),
-            ...(contextResources ? { contextResources } : {}),
-          }
-        : null;
-
     const insertData = {
-      id: randomUUID(),
       session_id: sessionId,
       role: message.role,
-      content: parts,
-      tool_calls:
-        (message as any)?.tool_calls || (message as any)?.toolCalls || null,
-      token_usage: tokenUsagePayload,
-    } as const;
+      content: content,
+      tool_calls: message.tool_calls || message.toolCalls || null,
+    };
 
     console.log(
       "[saveMessageToSession] Inserting data:",

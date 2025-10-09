@@ -60,13 +60,24 @@ export async function GET(
         let parts = msg.content;
         let contextResources = null;
 
+        // Legacy format where context resources were stored alongside parts
         if (
           msg.content &&
           typeof msg.content === "object" &&
           "parts" in msg.content
         ) {
-          parts = msg.content.parts;
-          contextResources = msg.content.contextResources;
+          parts = (msg.content as any).parts;
+          contextResources = (msg.content as any).contextResources ?? null;
+        }
+
+        // Current format: parts stored directly, context resources inside token_usage
+        if (
+          (!contextResources || contextResources.length === 0) &&
+          msg.token_usage &&
+          typeof msg.token_usage === "object" &&
+          "contextResources" in (msg.token_usage as Record<string, any>)
+        ) {
+          contextResources = (msg.token_usage as any).contextResources ?? null;
         }
 
         return {

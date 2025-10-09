@@ -737,7 +737,7 @@ function HomeContent() {
         <AnimatePresence mode="wait">
           {!hasMessages && (
             <motion.div
-              className="text-center pt-12 sm:pt-16 pb-6 sm:pb-4 px-4 sm:px-0"
+              className="text-center pt-6 sm:pt-8 pb-0 sm:pb-0 px-4 sm:px-0"
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20, transition: { duration: 0.3 } }}

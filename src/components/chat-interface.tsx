@@ -6,6 +6,7 @@ import {
   DefaultChatTransport,
   lastAssistantMessageIsCompleteWithToolCalls,
 } from "ai";
+import { NewsCarousel } from "@/components/news-carousel";
 import { HealthcareUIMessage } from "@/lib/types";
 import pdf from "pdf-parse";
 import { Button } from "@/components/ui/button";
@@ -2506,11 +2507,11 @@ export function ChatInterface({
           // Convert any pending dropped files into base64 attachments for the API
           let attachments: any[] = [];
           try {
-            if (Array.isArray(dropzoneFiles) && dropzoneFiles.length > 0) {
-              attachments = await Promise.all(
-                dropzoneFiles.map(async (f) => {
-                  const buf = await f.arrayBuffer();
-                  const dataBase64 = Buffer.from(buf).toString("base64");
+          if (Array.isArray(dropzoneFiles) && dropzoneFiles.length > 0) {
+            attachments = await Promise.all(
+              dropzoneFiles.map(async (f) => {
+                const buf = await f.arrayBuffer();
+                const dataBase64 = Buffer.from(buf).toString("base64");
                   const isImage = (f.type || "").startsWith("image/");
                   const isPdf =
                     (f.type || "").toLowerCase() === "application/pdf" ||
@@ -2578,6 +2579,67 @@ export function ChatInterface({
           } catch (e) {
             console.warn("Failed to serialize attachments", e);
           }
+
+          if (
+            attachments.length > 0 &&
+            Array.isArray(enrichedMessages) &&
+            enrichedMessages.length > 0
+          ) {
+            const sourceMessages =
+              enrichedMessages === messages ? messages : enrichedMessages;
+
+            const lastIdx = sourceMessages
+              .map((m: any) => m.role)
+              .lastIndexOf("user");
+            const targetIdx =
+              lastIdx >= 0 ? lastIdx : sourceMessages.length - 1;
+            const targetMessage = sourceMessages[targetIdx] as any;
+
+            if (targetMessage) {
+              const decodedParts = attachments.map((att: any) => {
+                const data = Buffer.from(att.dataBase64 || "", "base64");
+                if (att.kind === "image") {
+                  return {
+                    type: "image",
+                    image: data,
+                    mimeType: att.mediaType || "image/png",
+                  };
+                }
+                return {
+                  type: "file",
+                  data,
+                  mediaType: att.mediaType || "application/octet-stream",
+                  filename: att.name || undefined,
+                };
+              });
+
+              const updatedMessage = { ...targetMessage };
+
+              if (Array.isArray(targetMessage.parts)) {
+                updatedMessage.parts = [
+                  ...targetMessage.parts,
+                  ...decodedParts,
+                ];
+              } else if (typeof targetMessage.content === "string") {
+                updatedMessage.parts = [
+                  { type: "text", text: targetMessage.content },
+                  ...decodedParts,
+                ];
+                delete updatedMessage.content;
+              } else if (Array.isArray(targetMessage.content)) {
+                updatedMessage.content = [
+                  ...targetMessage.content,
+                  ...decodedParts,
+                ];
+              } else {
+                updatedMessage.parts = decodedParts;
+              }
+
+              enrichedMessages = sourceMessages.map((msg, index) =>
+                index === targetIdx ? updatedMessage : msg
+              );
+            }
+          }
           if (user) {
             const supabase = createClient();
             const {
@@ -2644,6 +2706,17 @@ export function ChatInterface({
     const newUserMessage = [...messages]
       .reverse()
       .find((msg) => !prevIds.includes(msg.id) && msg.role === "user");
+
+    const idsChanged =
+      prevIds.length !== currentIds.length ||
+      prevIds.some((id, index) => id !== currentIds[index]);
+    const hasPendingContext =
+      !!newUserMessage && lastSentContextRef.current.length > 0;
+
+    if (!idsChanged && !hasPendingContext) {
+      messageIdsRef.current = currentIds;
+      return;
+    }
 
     setContextResourceMap((prev) => {
       const next: Record<string, SavedItem[]> = {};
@@ -3652,8 +3725,29 @@ export function ChatInterface({
                         </motion.button>
                       </div>
 
-                      <div className="mt-4 sm:mt-8">
-                        <DataSourceLogos />
+                      <div className="mt-2 sm:mt-4">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                            <h3 className="text-sm font-semibold text-gray-900 dark:text-white">
+                              Live News
+                            </h3>
+                            <span className="text-xs text-gray-500 dark:text-gray-400">
+                              Powered by Valyu
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => {
+                              handlePromptClick(
+                                "Search for the latest trending news"
+                              );
+                            }}
+                            className="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 hover:underline dark:hover:text-blue-300 transition-colors cursor-pointer"
+                          >
+                            more
+                          </button>
+                        </div>
+                        <NewsCarousel />
                       </div>
                     </div>
                   </div>
@@ -3857,7 +3951,7 @@ export function ChatInterface({
 
                     {/* Powered by Valyu */}
                     <motion.div
-                      className="flex items-center justify-center mt-4"
+                      className="flex items-center justify-center mt-2"
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
                       transition={{ delay: 1.1, duration: 0.5 }}

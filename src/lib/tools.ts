@@ -2110,7 +2110,10 @@ ${escapeModuleTag(execution.result || "(No output produced)")}
 
         const searchOptions: any = {
           maxNumResults: maxResults || 10,
+          searchType: "proprietary",
           includedSources: includedSources,
+          isToolCall: true,
+          relevanceThreshold: 0.4,
         };
 
         if (startDate) searchOptions.startDate = startDate;
