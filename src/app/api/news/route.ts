@@ -8,8 +8,10 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const refresh = searchParams.get("refresh") === "true";
 
-    // Check cache first
-    const cachePath = path.join(process.cwd(), "news-cache.json");
+    // Determine cache location (writeable on both local dev and serverless envs)
+    const isProd = process.env.NODE_ENV === "production";
+    const cacheDir = isProd ? process.env.TMPDIR || "/tmp" : process.cwd();
+    const cachePath = path.join(cacheDir, "news-cache.json");
     const cacheExists = fs.existsSync(cachePath);
 
     if (cacheExists && !refresh) {
@@ -146,7 +148,17 @@ export async function GET(request: NextRequest) {
             newsItems: newsItems,
             timestamp: Date.now(),
           };
-          fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2));
+          try {
+            if (!fs.existsSync(cacheDir)) {
+              fs.mkdirSync(cacheDir, { recursive: true });
+            }
+            fs.writeFileSync(cachePath, JSON.stringify(cacheData, null, 2));
+          } catch (writeError) {
+            console.warn(
+              "[News API] Failed to write cache, continuing without caching:",
+              writeError
+            );
+          }
 
           return NextResponse.json({
             newsItems: newsItems,
