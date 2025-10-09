@@ -11,7 +11,7 @@ import { getPolarTrackedModel } from "@/lib/polar-llm-strategy";
 import { randomUUID } from "node:crypto";
 
 // Allow streaming responses up to 120 seconds
-export const maxDuration = 180;
+export const maxDuration = 800;
 
 export async function POST(req: Request) {
   try {
