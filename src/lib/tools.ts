@@ -835,13 +835,18 @@ export const healthcareTools = {
   codeExecution: tool({
     description: `Execute Python code securely in a Daytona Sandbox for financial modeling, data analysis, and calculations. CRITICAL: Always include print() statements to show results. Daytona can also capture rich artifacts (e.g., charts) when code renders images.
 
-    IMPORTANT INSTRUCTIONS:
-    - You can only import standard library utilities (math, statistics, etc.), no external packages.
-    - Do **not** under any circumstances attempt to install packages (pip, conda, etc.) or load external files or networks.
-    - Keep everything self-contained in plain Python.
-    - Your entire code MUST be strictly **under 10,000 characters** (including all whitespace and comments). If your code is too long, shorten or simplify it.
-
     REQUIRED FORMAT - Your Python code MUST include print statements:
+
+    IMPORTANT INSTRUCTIONS:
+    - No installs / no network: Do not install, upgrade, or import anything that requires downloads. Use only Python stdlib, NumPy, and pandas already present. If an import is missing, fail fast with a clear message; do not attempt pip or network calls.
+    - Array-safe numerics: Use NumPy for all array operations (np.exp, np.sqrt, np.log, etc.). Do not call math.* on arrays.
+    - Normal CDF / p-values: Do not use SciPy or np.erf. Use a provided norm_cdf that works on scalars and arrays.
+    - Shape discipline: All inputs must be strictly 1-D or 2-D. Before any linear algebra or broadcasting, assert shapes and length alignment (e.g., len(time) == len(event) == X.shape[0]). If a mismatch exists, raise a clear error immediately.
+    - Determinism: Use np.random.default_rng(<fixed_seed>) for randomness.
+    - I/O and side-effects: No background downloads; no writes outside /mnt/data. Keep console output concise and human-readable.
+    - Stability: Standardize numeric features when appropriate; add small ridge terms (e.g., 1e-6) if matrices are near-singular; avoid holding giant (n,p,p) tensors unless necessary.
+    - Clarity on failure: If any step cannot be satisfied under these rules, stop and print a single clear reason (do not auto-retry with different libraries or shapes).
+    - Your entire code MUST be strictly **under 10,000 characters** (including all whitespace and comments). If your code is too long, shorten or simplify it.
     
     Example for financial calculations:
     # Calculate compound interest
@@ -856,9 +861,10 @@ export const healthcareTools = {
     print(f"Interest earned: $\{amount - principal:,.2f}")
     
     Example for data analysis:
+    import math
     values = [100, 150, 200, 175, 225]
     average = sum(values) / len(values)
-    std_dev = (sum((x - average) ** 2 for x in values) / len(values)) ** 0.5
+    std_dev = math.sqrt(sum((x - average) ** 2 for x in values) / len(values))
     print(f"Data: \{values}")
     print(f"Average: \{average:.2f}")
     print(f"Standard deviation: \{std_dev:.2f}")
@@ -886,10 +892,8 @@ export const healthcareTools = {
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
       const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === "development";
-      const requestId = (options as any)?.experimental_context?.requestId;
 
       const startTime = Date.now();
-      const validations: ValidationItem[] = [];
 
       try {
         console.log("[Code Execution] Executing Python code:", {
@@ -899,18 +903,8 @@ export const healthcareTools = {
         });
 
         // Check for reasonable code length
-        const lengthOk = code.length <= 10000;
-        validations.push({
-          label: "Code Length",
-          status: lengthOk ? "pass" : "fail",
-          detail: lengthOk
-            ? "Within the 10,000 character limit."
-            : "Code exceeds the 10,000 character limit.",
-        });
-        if (!lengthOk) {
-          return `${formatValidationSummary(
-            validations
-          )}\n\nPlease shorten your code and try again.`;
+        if (code.length > 10000) {
+          return "🚫 **Error**: Code too long. Please limit your code to 10,000 characters.";
         }
 
         // Initialize Daytona client
@@ -931,69 +925,8 @@ export const healthcareTools = {
           // Create a Python sandbox
           sandbox = await daytona.create({ language: "python" });
 
-          const importRegex =
-            /(^|\s)(?:from\s+[A-Za-z_][A-Za-z0-9_.]*\s+import|import\s+[A-Za-z_][A-Za-z0-9_.]*)/m;
-          const hasImports = importRegex.test(code);
-          validations.push({
-            label: "Import Usage",
-            status: hasImports ? "fail" : "pass",
-            detail: hasImports
-              ? "Import statements detected. The sandbox requires fully self-contained code."
-              : "No import statements detected.",
-          });
-          if (hasImports) {
-            return `${formatValidationSummary(
-              validations
-            )}\n\nRemove the imports and rerun your request.`;
-          }
-
-          // Preflight imports to ensure only available modules are used
-          const importedModules = extractImportedModules(code);
-          const missingModules: string[] = [];
-
-          for (const modName of importedModules) {
-            const check = await sandbox.process.codeRun(`import ${modName}`);
-            if (check.exitCode !== 0) {
-              missingModules.push(modName);
-            }
-          }
-
-          if (missingModules.length > 0) {
-            const uniqueMissing = Array.from(new Set(missingModules));
-            const formatted = uniqueMissing.map((m) => `• \`${m}\``).join("\n");
-            validations.push({
-              label: "Module Availability",
-              status: "fail",
-              detail: `Attempted to import:\n${formatted}`,
-            });
-            return `${formatValidationSummary(
-              validations
-            )}\n\nPlease rewrite your Python code to rely only on built-in modules that are already available (no pip installs).`;
-          }
-          validations.push({
-            label: "Module Availability",
-            status: "pass",
-            detail: "No external module imports attempted.",
-          });
-
-          const aliasIssue = detectCodeIssues(code);
-          if (aliasIssue) {
-            validations.push(aliasIssue);
-            return `${formatValidationSummary(
-              validations
-            )}\n\nUpdate the code to satisfy the sandbox rules and try again.`;
-          }
-          validations.push({
-            label: "NumPy Alias Safety",
-            status: "pass",
-            detail: "No unsupported NumPy alias usage detected.",
-          });
-
-          const validationSummary = formatValidationSummary(validations);
-
           // Execute the user's code
           const execution = await sandbox.process.codeRun(code);
-
           const executionTime = Date.now() - startTime;
 
           // Track code execution
@@ -1051,18 +984,15 @@ export const healthcareTools = {
           if (execution.exitCode !== 0) {
             // Provide helpful error messages for common issues
             let helpfulError = execution.result || "Unknown execution error";
-            const missingModule = extractMissingModuleName(helpfulError);
-            if (missingModule) {
-              helpfulError = `${helpfulError}\n\n🚫 **Unsupported Package**: The Daytona sandbox cannot install external modules like \`${missingModule}\`. Please rewrite your code to use only standard library modules or packages that are already available.`;
-            } else if (helpfulError.includes("NameError")) {
+            if (helpfulError.includes("NameError")) {
               helpfulError = `${helpfulError}\n\n💡 **Tip**: Make sure all variables are defined before use. If you're trying to calculate something, include the full calculation in your code.`;
             } else if (helpfulError.includes("SyntaxError")) {
               helpfulError = `${helpfulError}\n\n💡 **Tip**: Check your Python syntax. Make sure all parentheses, quotes, and indentation are correct.`;
+            } else if (helpfulError.includes("ModuleNotFoundError")) {
+              helpfulError = `${helpfulError}\n\n💡 **Tip**: You can install packages inside the Daytona sandbox using pip if needed (e.g., pip install numpy).`;
             }
 
-            return `${validationSummary}\n\n❌ **Execution Error**: ${escapeModuleTag(
-              helpfulError
-            )}`;
+            return `❌ **Execution Error**: ${helpfulError}`;
           }
 
           console.log("[Code Execution] Success:", {
@@ -1072,7 +1002,7 @@ export const healthcareTools = {
           });
 
           // Format the successful execution result
-          return `${validationSummary}\n\n🐍 **Python Code Execution (Daytona Sandbox)**
+          return `🐍 **Python Code Execution (Daytona Sandbox)**
 ${description ? `**Description**: ${description}\n` : ""}
 
 \`\`\`python
@@ -1081,7 +1011,7 @@ ${code}
 
 **Output:**
 \`\`\`
-${escapeModuleTag(execution.result || "(No output produced)")}
+${execution.result || "(No output produced)"}
 \`\`\`
 
 ⏱️ **Execution Time**: ${executionTime}ms`;

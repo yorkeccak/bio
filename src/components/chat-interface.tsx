@@ -335,6 +335,18 @@ const markdownComponents = {
       {children}
     </div>
   ),
+  // Handle XML string tags from academic content
+  string: ({ children }: any) => (
+    <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-1 rounded">
+      {children}
+    </span>
+  ),
+  // Handle XML module tags from academic content
+  module: ({ children }: any) => (
+    <span className="font-mono text-sm bg-blue-100 dark:bg-blue-800/30 px-1 rounded">
+      {children}
+    </span>
+  ),
 };
 
 // Memoized Markdown renderer to avoid re-parsing on unrelated state updates
@@ -2507,11 +2519,11 @@ export function ChatInterface({
           // Convert any pending dropped files into base64 attachments for the API
           let attachments: any[] = [];
           try {
-          if (Array.isArray(dropzoneFiles) && dropzoneFiles.length > 0) {
-            attachments = await Promise.all(
-              dropzoneFiles.map(async (f) => {
-                const buf = await f.arrayBuffer();
-                const dataBase64 = Buffer.from(buf).toString("base64");
+            if (Array.isArray(dropzoneFiles) && dropzoneFiles.length > 0) {
+              attachments = await Promise.all(
+                dropzoneFiles.map(async (f) => {
+                  const buf = await f.arrayBuffer();
+                  const dataBase64 = Buffer.from(buf).toString("base64");
                   const isImage = (f.type || "").startsWith("image/");
                   const isPdf =
                     (f.type || "").toLowerCase() === "application/pdf" ||

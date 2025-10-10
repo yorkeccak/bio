@@ -74,7 +74,7 @@ export async function POST(req: Request) {
 
         // Create a new message object instead of mutating the existing one
         const updatedMessage = { ...target };
-        
+
         if (Array.isArray(target.parts)) {
           updatedMessage.parts = [...target.parts, ...decodedParts];
         } else if (typeof target.content === "string") {
@@ -89,7 +89,7 @@ export async function POST(req: Request) {
         } else {
           updatedMessage.parts = decodedParts;
         }
-        
+
         // Replace the message in the array with the new object
         messages[targetIdx] = updatedMessage;
       }

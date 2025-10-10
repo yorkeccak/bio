@@ -296,6 +296,18 @@ const markdownComponents = {
       {children}
     </div>
   ),
+  // Handle XML string tags from academic content
+  string: ({ children }: any) => (
+    <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-1 rounded">
+      {children}
+    </span>
+  ),
+  // Handle XML module tags from academic content
+  module: ({ children }: any) => (
+    <span className="font-mono text-sm bg-blue-100 dark:bg-blue-800/30 px-1 rounded">
+      {children}
+    </span>
+  ),
 };
 
 // Memoized Markdown renderer to avoid re-parsing on unrelated state updates
