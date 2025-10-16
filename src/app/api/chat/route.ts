@@ -434,6 +434,7 @@ export async function POST(req: Request) {
          - Search for clinical trials data using the clinicalTrialsSearch tool (ongoing trials, completed studies, drug efficacy data)
          - Look up drug information using the drugInformationSearch tool (FDA labels, contraindications, side effects, drug interactions)
          - Search biomedical literature using the biomedicalLiteratureSearch tool (PubMed, ArXiv, peer-reviewed papers)
+           - **CRITICAL: Keep literature search queries concise and specific (max 10-15 words). Use focused keywords rather than long descriptive queries. **
          - Analyze pharmaceutical companies using the pharmaCompanyAnalysis tool (SEC filings, financial data, competitive intelligence)
            - **CRITICAL: When searching for SEC filings, ONLY search for 10-K, 10-Q, or 8-K filings. Do NOT search for any other types of SEC filings. If the user's request is not specifically about 10-K, 10-Q, or 8-K, do NOT make a tool call for SEC filings.**
          - Perform comprehensive healthcare searches using the comprehensiveHealthcareSearch tool (across all medical data sources)  

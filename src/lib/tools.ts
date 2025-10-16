@@ -2007,16 +2007,8 @@ ${execution.result || "(No output produced)"}
         .optional()
         .default(10)
         .describe("Maximum number of results to return"),
-      startDate: z
-        .string()
-        .optional()
-        .describe("Start date filter in MM-DD-YYYY format"),
-      endDate: z
-        .string()
-        .optional()
-        .describe("End date filter in MM-DD-YYYY format"),
     }),
-    execute: async ({ query, maxResults, startDate, endDate }, options) => {
+    execute: async ({ query, maxResults }, options) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
       const userTier = (options as any)?.experimental_context?.userTier;
@@ -2046,9 +2038,6 @@ ${execution.result || "(No output produced)"}
           relevanceThreshold: 0.4,
         };
 
-        if (startDate) searchOptions.startDate = startDate;
-        if (endDate) searchOptions.endDate = endDate;
-
         const sessionKey = buildToolKey(
           "biomedicalLiteratureSearch",
           query,
@@ -2062,6 +2051,8 @@ ${execution.result || "(No output produced)"}
             () => valyu.search(query, searchOptions)
           )
         );
+
+        console.log("response", response);
 
         const mapped = response.results.map((r: any) => {
           const pmid = r.metadata?.pmid ? String(r.metadata.pmid) : undefined;
