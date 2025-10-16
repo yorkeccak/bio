@@ -434,7 +434,6 @@ export async function POST(req: Request) {
          - Search for clinical trials data using the clinicalTrialsSearch tool (ongoing trials, completed studies, drug efficacy data)
          - Look up drug information using the drugInformationSearch tool (FDA labels, contraindications, side effects, drug interactions)
          - Search biomedical literature using the biomedicalLiteratureSearch tool (PubMed, ArXiv, peer-reviewed papers)
-           - **CRITICAL: Keep literature search queries concise and specific (max 10-15 words). Use focused keywords rather than long descriptive queries. **
          - Analyze pharmaceutical companies using the pharmaCompanyAnalysis tool (SEC filings, financial data, competitive intelligence)
            - **CRITICAL: When searching for SEC filings, ONLY search for 10-K, 10-Q, or 8-K filings. Do NOT search for any other types of SEC filings. If the user's request is not specifically about 10-K, 10-Q, or 8-K, do NOT make a tool call for SEC filings.**
          - Perform comprehensive healthcare searches using the comprehensiveHealthcareSearch tool (across all medical data sources)  
@@ -443,6 +442,13 @@ export async function POST(req: Request) {
          - Create interactive charts and visualizations using the chart creation tool (line charts, bar charts, area charts with multiple data series)
 
       **CRITICAL NOTE**: You must only make max 5 parallel tool calls at a time.
+
+      **CRITICAL LITERATURE SEARCH QUERY RULES**:
+      - Keep queries SHORT and focused (max 5-8 words)
+      - Use simple keywords, NOT full sentences or descriptions
+      - DO NOT include years/dates in the query (e.g., "2023 2024") - the tool will find recent papers automatically
+      - Good examples: "CAR-T DLBCL efficacy", "axicabtagene toxicity", "mantle cell lymphoma outcomes"
+      - Bad examples: "axicabtagene ciloleucel DLBCL real-world 2023 2024", "CAR-T B-cell lymphoma review 2023 2024"
 
       **CRITICAL INSTRUCTIONS**: Your reports must be incredibly thorough and detailed, explore everything that is relevant to the user's query that will help to provide
       the perfect response that is of a level expected of an elite level medical researcher or pharmaceutical analyst at a leading biomedical research institution.
