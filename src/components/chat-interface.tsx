@@ -440,6 +440,12 @@ const extractSearchResults = (jsonOutput: string) => {
           enrollment: result.enrollment,
           conditions: result.conditions,
           interventions: result.interventions,
+          // Include biomedical literature metadata
+          doi: result.doi,
+          citation: result.citation,
+          authors: result.authors,
+          references: result.references,
+          pmid: result.pmid,
         };
       });
 
@@ -839,7 +845,7 @@ export const SearchResultCard = ({
         </Card>
       </DialogTrigger>
 
-      <DialogContent className="w-[95vw] sm:w-[85vw] max-h-[80vh] overflow-hidden">
+      <DialogContent className="w-[95vw] sm:max-w-4xl lg:max-w-5xl max-h-[80vh] overflow-hidden">
         <DialogHeader>
           <DialogTitle className=" pr-8">{result.title}</DialogTitle>
           <Separator />
@@ -852,25 +858,73 @@ export const SearchResultCard = ({
                   {(result.relevanceScore * 100).toFixed(0)}% relevance
                 </span>
               )}
-              {type === "wiley" && result.doi && (
-                <span className="text-xs bg-amber-100 dark:bg-amber-800/30 text-amber-700 dark:text-amber-300 px-2 py-1 rounded">
+              {(type === "wiley" || type === "healthcare") && result.doi && (
+                <a
+                  href={`https://doi.org/${result.doi}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs bg-amber-100 dark:bg-amber-800/30 text-amber-700 dark:text-amber-300 px-2 py-1 rounded hover:bg-amber-200 dark:hover:bg-amber-700/30 transition-colors inline-flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   DOI: {result.doi}
-                </span>
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
+              )}
+              {type === "healthcare" && result.pmid && (
+                <a
+                  href={`https://pubmed.ncbi.nlm.nih.gov/${result.pmid}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs bg-blue-100 dark:bg-blue-800/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded hover:bg-blue-200 dark:hover:bg-blue-700/30 transition-colors inline-flex items-center gap-1"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  PMID: {result.pmid}
+                  <ExternalLink className="h-2.5 w-2.5" />
+                </a>
               )}
             </div>
 
-            {type === "wiley" && (result.authors || result.citation) && (
+            {(type === "wiley" || type === "healthcare") && (result.authors || result.citation) && (
               <div className="space-y-1">
-                {result.authors && result.authors.length > 0 && (
-                  <div className="text-xs text-gray-600 dark:text-gray-400">
-                    <span className="font-medium">Authors:</span>{" "}
-                    {result.authors.join(", ")}
-                  </div>
-                )}
                 {result.citation && (
-                  <div className="text-xs text-gray-600 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-1 rounded">
+                  <div className="text-xs text-gray-600 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-2 rounded">
+                    <div className="flex items-center justify-between mb-1">
+                      <span className="font-medium">Citation (APA):</span>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          copyToClipboard(result.citation);
+                        }}
+                        className="h-6 px-2 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                        title="Copy citation"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                    </div>
                     {result.citation}
                   </div>
+                )}
+                {result.authors && result.authors.length > 0 && (
+                  <details className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded cursor-pointer">
+                    <summary className="font-medium cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
+                      Authors ({result.authors.length})
+                    </summary>
+                    <div className="mt-2 pl-2">
+                      {result.authors.join(", ")}
+                    </div>
+                  </details>
+                )}
+                {result.references && result.references.trim() && (
+                  <details className="text-xs text-gray-600 dark:text-gray-400 bg-gray-50 dark:bg-gray-800 p-2 rounded cursor-pointer">
+                    <summary className="font-medium cursor-pointer hover:text-gray-900 dark:hover:text-gray-200">
+                      References
+                    </summary>
+                    <div className="mt-2 pl-2 whitespace-pre-wrap max-h-60 overflow-y-auto">
+                      {result.references}
+                    </div>
+                  </details>
                 )}
               </div>
             )}

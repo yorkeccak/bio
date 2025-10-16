@@ -2056,10 +2056,7 @@ ${execution.result || "(No output produced)"}
 
         const mapped = response.results.map((r: any) => {
           const pmid = r.metadata?.pmid ? String(r.metadata.pmid) : undefined;
-          const doi =
-            extractDoi(r.metadata?.doi) ||
-            extractDoi(r.url) ||
-            extractDoi(r.content);
+          const doi = r.doi || r.metadata?.doi;
           const arxiv = extractArxivId(r.url);
           const normalized = normalizeUrl(r.url);
           const key = pmid || doi || arxiv || normalized;
@@ -2068,8 +2065,13 @@ ${execution.result || "(No output produced)"}
             title: r.title,
             url: r.url,
             content: r.content,
-            date: r.metadata?.date,
+            date: r.metadata?.date || r.publication_date,
             source: r.metadata?.source || r.source,
+            doi: doi,
+            citation: r.citation,
+            authors: r.authors,
+            references: r.references,
+            pmid: pmid,
           };
         });
 
@@ -2163,6 +2165,11 @@ ${execution.result || "(No output produced)"}
               length: result.length,
               image_url: result.image_url || {},
               relevance_score: result.relevance_score,
+              doi: result.doi,
+              citation: result.citation,
+              authors: result.authors,
+              references: result.references,
+              pmid: result.pmid,
             })),
           },
           null,
