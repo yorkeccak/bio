@@ -1,5 +1,5 @@
 {
-  "name": "biomed-research-ai",
+  "name": "bio",
   "version": "0.1.0",
   "private": true,
   "description": "Institutional-grade biomedical research AI chatbot with access to PubMed, clinical trials, FDA drug labels, and Python code execution",

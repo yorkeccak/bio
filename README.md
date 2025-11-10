@@ -79,8 +79,8 @@ BioMed Research AI supports two distinct operating modes:
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/biomed-research-ai.git
-   cd biomed-research-ai
+   git clone https://github.com/yorkeccak/bio.git
+   cd bio
    ```
 
 2. **Install dependencies**
@@ -704,5 +704,5 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 <p align="center">
   <a href="https://twitter.com/ValyuNetwork">Twitter</a> •
   <a href="https://www.linkedin.com/company/valyu-ai">LinkedIn</a> •
-  <a href="https://github.com/yourusername/biomed-research-ai">GitHub</a>
+  <a href="https://github.com/yorkeccak/bio">GitHub</a>
 </p>

@@ -276,9 +276,9 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
                     onClick={() => {
                       track('GitHub CTA Click', {
                         source: 'rate_limit_dialog',
-                        url: 'https://github.com/yorkeccak/biomed-research-ai/'
+                        url: 'https://github.com/yorkeccak/bio/'
                       });
-                      window.open('https://github.com/yorkeccak/biomed-research-ai/', '_blank');
+                      window.open('https://github.com/yorkeccak/bio/', '_blank');
                     }}
                     variant="ghost"
                     className="flex-1 text-sm"

@@ -19,7 +19,7 @@ const SocialLinks = () => {
     },
     {
       name: "GitHub",
-      url: "https://github.com/yorkeccak/biomed-research-ai/",
+      url: "https://github.com/yorkeccak/bio/",
       icon: <Github className="h-4 w-4" />,
     },
   ];
