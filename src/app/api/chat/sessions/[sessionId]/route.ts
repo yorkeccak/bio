@@ -1,176 +1,99 @@
-import { createClient } from "@supabase/supabase-js";
+import * as db from '@/lib/db';
 
-export async function GET(
-  req: Request,
-  { params }: { params: Promise<{ sessionId: string }> }
-) {
+export async function GET(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get("Authorization") || "",
-        },
-      },
-    }
-  );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await db.getUser();
+
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+      status: 401
     });
   }
 
   // Get session with messages
-  const { data: session, error: sessionError } = await supabase
-    .from("chat_sessions")
-    .select("*")
-    .eq("id", sessionId)
-    .eq("user_id", user.id)
-    .single();
+  const { data: session, error: sessionError } = await db.getChatSession(sessionId, user.id);
 
   if (sessionError || !session) {
     return new Response(JSON.stringify({ error: "Session not found" }), {
-      status: 404,
+      status: 404
     });
   }
 
-  const { data: messages, error: messagesError } = await supabase
-    .from("chat_messages")
-    .select("*")
-    .eq("session_id", sessionId)
-    .order("created_at", { ascending: true });
+  const { data: messages, error: messagesError } = await db.getChatMessages(sessionId);
 
   if (messagesError) {
-    return new Response(JSON.stringify({ error: messagesError.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: messagesError.message || messagesError }), {
+      status: 500
     });
   }
 
-  return new Response(
-    JSON.stringify({
-      session,
-      messages: messages.map((msg) => {
-        // Handle both old format (content as parts) and new format (content with parts and contextResources)
-        let parts = msg.content;
-        let contextResources = null;
+  // Normalize messages format
+  const normalizedMessages = messages?.map(msg => {
+    // Parse content if it's a string (SQLite stores as TEXT)
+    let parsedContent = msg.content;
+    if (typeof msg.content === 'string') {
+      try {
+        parsedContent = JSON.parse(msg.content);
+      } catch (e) {
+        parsedContent = [];
+      }
+    }
 
-        // Legacy format where context resources were stored alongside parts
-        if (
-          msg.content &&
-          typeof msg.content === "object" &&
-          "parts" in msg.content
-        ) {
-          parts = (msg.content as any).parts;
-          contextResources = (msg.content as any).contextResources ?? null;
-        }
+    return {
+      id: msg.id,
+      role: msg.role,
+      parts: parsedContent || [],
+      createdAt: (msg as any).created_at || (msg as any).createdAt,
+      processing_time_ms: (msg as any).processing_time_ms || (msg as any).processingTimeMs,
+    };
+  }) || [];
 
-        // Current format: parts stored directly, context resources inside token_usage
-        if (
-          (!contextResources || contextResources.length === 0) &&
-          msg.token_usage &&
-          typeof msg.token_usage === "object" &&
-          "contextResources" in (msg.token_usage as Record<string, any>)
-        ) {
-          contextResources = (msg.token_usage as any).contextResources ?? null;
-        }
-
-        return {
-          id: msg.id,
-          role: msg.role,
-          parts: parts,
-          contextResources: contextResources,
-          toolCalls: msg.tool_calls,
-          createdAt: msg.created_at,
-        };
-      }),
-    })
-  );
+  return new Response(JSON.stringify({
+    session,
+    messages: normalizedMessages
+  }));
 }
 
-export async function DELETE(
-  req: Request,
-  { params }: { params: Promise<{ sessionId: string }> }
-) {
+export async function DELETE(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get("Authorization") || "",
-        },
-      },
-    }
-  );
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  const { data: { user } } = await db.getUser();
+
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+      status: 401
     });
   }
 
-  const { error } = await supabase
-    .from("chat_sessions")
-    .delete()
-    .eq("id", sessionId)
-    .eq("user_id", user.id);
+  const { error } = await db.deleteChatSession(sessionId, user.id);
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: error.message || error }), {
+      status: 500
     });
   }
 
   return new Response(JSON.stringify({ success: true }));
 }
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: Promise<{ sessionId: string }> }
-) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ sessionId: string }> }) {
   const { sessionId } = await params;
   const { title } = await req.json();
 
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-    {
-      global: {
-        headers: {
-          Authorization: req.headers.get("Authorization") || "",
-        },
-      },
-    }
-  );
+  const { data: { user } } = await db.getUser();
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
   if (!user) {
     return new Response(JSON.stringify({ error: "Unauthorized" }), {
-      status: 401,
+      status: 401
     });
   }
 
-  const { error } = await supabase
-    .from("chat_sessions")
-    .update({ title })
-    .eq("id", sessionId)
-    .eq("user_id", user.id);
+  const { error } = await db.updateChatSession(sessionId, user.id, { title });
 
   if (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
+    return new Response(JSON.stringify({ error: error.message || error }), {
+      status: 500
     });
   }
 

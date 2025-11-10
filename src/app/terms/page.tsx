@@ -19,7 +19,7 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">2. Description of Service</h2>
             <p className="text-gray-700 dark:text-gray-300 mb-4">
-              Our service provides AI-powered financial analysis and research tools using:
+              Our service provides AI-powered biomedical research and analysis tools using:
             </p>
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li>OpenAI GPT-5 for natural language processing</li>
@@ -66,7 +66,7 @@ export default function TermsOfService() {
           <section className="mb-8">
             <h2 className="text-xl font-semibold text-gray-900 dark:text-gray-100 mb-4">6. Disclaimer of Warranties</h2>
             <p className="text-gray-700 dark:text-gray-300">
-              The service is provided &quot;as is&quot; without any warranties, express or implied. We do not guarantee that the service will be uninterrupted or error-free. Financial information should not be considered as investment advice.
+              The service is provided &quot;as is&quot; without any warranties, express or implied. We do not guarantee that the service will be uninterrupted or error-free. Medical and scientific information should not be considered as medical advice or professional consultation.
             </p>
           </section>
 

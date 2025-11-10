@@ -3,13 +3,14 @@
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ExternalLink, Copy, Check, Github, CreditCard, Code, ChartLine } from 'lucide-react';
+import { ExternalLink, Copy, Check, Github, CreditCard, Code, ChartLine, Building2 } from 'lucide-react';
 import { useState, useEffect, useMemo } from 'react';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { useRateLimit } from '@/lib/hooks/use-rate-limit';
-import { createClient } from '@/utils/supabase/client';
+import { createClient } from '@/utils/supabase/client-wrapper';
+import { EnterpriseContactModal } from '@/components/enterprise/enterprise-contact-modal';
 
 interface RateLimitDialogProps {
   open: boolean;
@@ -21,9 +22,10 @@ interface RateLimitDialogProps {
 export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: RateLimitDialogProps) {
   const user = useAuthStore((state) => state.user);
   const { tier, hasPolarCustomer } = useRateLimit();
-  
+
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showEnterpriseModal, setShowEnterpriseModal] = useState(false);
   const [activeTab, setActiveTab] = useState(() => {
     if (typeof window !== 'undefined') {
       return localStorage.getItem('preferredLanguage') || 'Python';
@@ -33,16 +35,16 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
   
   // Dynamic example queries
   const exampleQueries = useMemo(() => [
-    "Apple earnings Q4 2024",
-    "Tesla latest news and developments", 
-    "Bitcoin price trends and analysis",
-    "Microsoft SEC 10-K filing",
-    "Market sentiment on AI stocks",
-    "Fed interest rate decisions",
-    "Amazon revenue breakdown by segment",
-    "Oil prices and energy market outlook",
-    "Google antitrust case updates",
-    "S&P 500 performance metrics"
+    "Latest Alzheimer's drug approvals",
+    "Immunotherapy advancements in lung cancer",
+    "Phase 3 trials for melanoma CAR-T therapy",
+    "Pembrolizumab efficacy in NSCLC",
+    "CRISPR safety in human trials",
+    "Drug interactions between metformin and lisinopril",
+    "COVID-19 vaccine efficacy comparison",
+    "mRNA vaccine technology developments",
+    "Monoclonal antibody treatments for cancer",
+    "Gene therapy clinical trial outcomes"
   ], []);
 
   const [currentExampleIndex, setCurrentExampleIndex] = useState(0);
@@ -161,7 +163,6 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
         window.location.href = checkoutUrl;
       }
     } catch (error) {
-      console.error('Failed to create checkout:', error);
     } finally {
       setLoading(false);
     }
@@ -171,10 +172,10 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
     track('Platform Clickthrough', {
       source: 'rate_limit_dialog',
       action: 'build_your_own',
-      url: 'https://platform.valyu.network/?utm_source=finance.valyu.network&utm_medium=rate_limit_dialog'
+      url: 'https://platform.valyu.ai/?utm_source=biomed.valyu.ai&utm_medium=rate_limit_dialog'
     });
     
-    window.open('https://platform.valyu.network/?utm_source=finance.valyu.network&utm_medium=rate_limit_dialog', '_blank');
+    window.open('https://platform.valyu.ai/?utm_source=biomed.valyu.ai&utm_medium=rate_limit_dialog', '_blank');
   };
 
   const handleCreateAccount = () => {
@@ -187,7 +188,7 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
     onOpenChange(false);
   };
 
-  const codeSnippet = `curl -X POST "https://api.valyu.network/v1/search" \\
+  const codeSnippet = `curl -X POST "https://api.valyu.ai/v1/search" \\
   -H "Authorization: x-api-key your_api_key" \\
   -H "Content-Type: application/json" \\
   -d '{"query": "latest tesla MD&A 10-k", "max_results": 2}'`;
@@ -237,19 +238,47 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
                       className="w-full"
                     >
                       <CreditCard className="mr-2 h-4 w-4" />
-                      Unlimited - $200/month
+                      Unlimited - $50/month
                     </Button>
                   </div>
                 )}
-                
+
+                {/* Enterprise Option */}
+                {user && process.env.NEXT_PUBLIC_APP_MODE !== 'development' && (
+                  <div className="mt-4 p-4 bg-slate-50 dark:bg-slate-900/50 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <div className="flex items-start gap-3 mb-3">
+                      <Building2 className="h-5 w-5 text-slate-600 dark:text-slate-400 mt-0.5" />
+                      <div>
+                        <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 mb-1">
+                          Need enterprise deployment?
+                        </h4>
+                        <p className="text-xs text-gray-600 dark:text-gray-400">
+                          Deploy Valyu&apos;s infrastructure in your organization with custom data integrations and AI agents
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setShowEnterpriseModal(true);
+                        track('Enterprise CTA Clicked', { source: 'rate_limit_dialog' });
+                      }}
+                      variant="outline"
+                      className="w-full text-sm border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      <Building2 className="mr-2 h-4 w-4" />
+                      Book a Demo
+                    </Button>
+                  </div>
+                )}
+
                 <div className="flex gap-2">
                   <Button
                     onClick={() => {
                       track('GitHub CTA Click', {
                         source: 'rate_limit_dialog',
-                        url: 'https://github.com/yorkeccak/finance/'
+                        url: 'https://github.com/yorkeccak/biomed-research-ai/'
                       });
-                      window.open('https://github.com/yorkeccak/finance/', '_blank');
+                      window.open('https://github.com/yorkeccak/biomed-research-ai/', '_blank');
                     }}
                     variant="ghost"
                     className="flex-1 text-sm"
@@ -293,6 +322,10 @@ export function RateLimitDialog({ open, onOpenChange, resetTime, onShowAuth }: R
           </DialogContent>
         </Dialog>
       )}
+      <EnterpriseContactModal
+        open={showEnterpriseModal}
+        onClose={() => setShowEnterpriseModal(false)}
+      />
     </AnimatePresence>
   );
 }

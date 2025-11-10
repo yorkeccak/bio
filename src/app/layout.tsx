@@ -7,7 +7,9 @@ import { Analytics } from '@vercel/analytics/next';
 import { AuthInitializer } from "@/components/auth/auth-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { PostHogProvider } from "@/components/posthog-provider";
 import { logEnvironmentStatus } from "@/lib/env-validation";
+import { LocalModelStatus } from "@/components/local-model-status";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -23,34 +25,34 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
   ),
   title: {
-    default: "Bio by Valyu",
-    template: "%s | Bio by Valyu",
+    default: "BioMed Research AI",
+    template: "%s | BioMed Research AI",
   },
   description:
-    "AI-powered bio/healthcare analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
-  applicationName: "Bio by Valyu",
+    "Institutional-grade biomedical research AI with access to PubMed, clinical trials, FDA drug labels, secure Python execution, and interactive visualizations for comprehensive research.",
+  applicationName: "BioMed Research AI",
   openGraph: {
-    title: "Bio by Valyu",
+    title: "BioMed Research AI",
     description:
-      "AI-powered bio/healthcare analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
+      "Access PubMed articles, clinical trials, FDA drug labels, and more. AI-powered biomedical research with secure Python execution and interactive visualizations.",
     url: "/",
-    siteName: "Bio by Valyu",
+    siteName: "BioMed Research AI",
     images: [
       {
         url: "/valyu.png",
         width: 1200,
         height: 630,
-        alt: "Bio by Valyu",
+        alt: "BioMed Research AI",
       },
     ],
-    locale: "en_US",  
+    locale: "en_US",
     type: "website",
   },
   twitter: {
     card: "summary_large_image",
-    title: "Bio by Valyu",
+    title: "BioMed Research AI",
     description:
-      "AI-powered bio/healthcare analysis by Valyu. Real-time data, secure Python execution in Daytona sandboxes, and interactive visualizations for research and reporting.",
+      "AI-powered biomedical research. Access PubMed, clinical trials, FDA drug labels. Secure Python execution in Daytona sandboxes for statistical analysis and visualizations.",
     images: ["/valyu.png"],
   },
   icons: {
@@ -71,7 +73,7 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${geistSans.variable} ${geistMono.variable} antialiased overflow-x-hidden`}
       >
         <ThemeProvider
           attribute="class"
@@ -81,11 +83,14 @@ export default function RootLayout({
         >
           <QueryProvider>
             <AuthInitializer>
-              <OllamaProvider>
-                <MissingKeysDialog />
-                {children}
-                <Analytics />
-              </OllamaProvider>
+              <PostHogProvider>
+                <OllamaProvider>
+                  <MissingKeysDialog />
+                  <LocalModelStatus />
+                  {children}
+                  <Analytics />
+                </OllamaProvider>
+              </PostHogProvider>
             </AuthInitializer>
           </QueryProvider>
         </ThemeProvider>

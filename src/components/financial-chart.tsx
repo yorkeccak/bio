@@ -1,46 +1,33 @@
-"use client";
+'use client';
 
-import React, { JSX } from "react";
+import React, { JSX, useRef, useState } from 'react';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent, type ChartConfig } from '@/components/ui/chart';
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  ChartLegend,
-  ChartLegendContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
-import {
-  LineChart,
-  Line,
-  BarChart,
-  Bar,
-  AreaChart,
-  Area,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Legend,
-} from "recharts";
+  LineChart, Line, BarChart, Bar, AreaChart, Area,
+  ScatterChart, Scatter, ZAxis,
+  XAxis, YAxis, CartesianGrid, ReferenceLine,
+  Cell, LabelList, ResponsiveContainer
+} from 'recharts';
+import { Download } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import Image from 'next/image';
 
-// Default color palette with fallback colors
+// Professional color palette for biomedical research
 const DEFAULT_COLORS = [
-  "#2563eb", // Blue
-  "#dc2626", // Red
-  "#16a34a", // Green
-  "#ca8a04", // Yellow
-  "#9333ea", // Purple
+  '#1e40af', // Deep Blue
+  '#0891b2', // Cyan
+  '#6366f1', // Indigo
+  '#8b5cf6', // Purple
+  '#64748b', // Slate
+  '#475569', // Slate Dark
 ] as const;
 
 interface DataPoint {
   x: string | number;
   y: number;
+  size?: number;   // For scatter/bubble charts
+  label?: string;  // For scatter charts
 }
 
 interface DataSeries {
@@ -48,8 +35,8 @@ interface DataSeries {
   data: DataPoint[];
 }
 
-interface FinancialChartProps {
-  chartType: "line" | "bar" | "area";
+interface BiomedicalChartProps {
+  chartType: 'line' | 'bar' | 'area' | 'scatter' | 'quadrant';
   title: string;
   xAxisLabel: string;
   yAxisLabel: string;
@@ -63,9 +50,10 @@ interface FinancialChartProps {
       end: string | number;
     } | null;
   };
+  hideDownloadButton?: boolean;
 }
 
-export function FinancialChart({
+function BiomedicalChartComponent({
   chartType,
   title,
   xAxisLabel,
@@ -73,15 +61,60 @@ export function FinancialChart({
   dataSeries,
   description,
   metadata,
-}: FinancialChartProps) {
+  hideDownloadButton = false,
+}: BiomedicalChartProps) {
+  const chartRef = useRef<HTMLDivElement>(null);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Download chart as PNG
+  const handleDownload = async () => {
+    if (!chartRef.current) return;
+
+    setIsDownloading(true);
+    try {
+      // Dynamically import html-to-image (code splitting)
+      const { toPng } = await import('html-to-image');
+
+      // Convert to PNG with 2x pixel ratio for high-res
+      const dataUrl = await toPng(chartRef.current, {
+        cacheBust: true,
+        pixelRatio: 2,  // Retina-quality export
+        backgroundColor: '#ffffff',
+      });
+
+      // Convert data URL to blob
+      const response = await fetch(dataUrl);
+      const blob = await response.blob();
+
+      // Sanitize filename
+      const fileName = `${title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.png`;
+
+      // Trigger download
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+    } catch (error) {
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   // Transform data for Recharts format
-  // Combine all series data into single array with x as key
   const transformedData = React.useMemo(() => {
+    if (chartType === 'scatter' || chartType === 'quadrant') {
+      return []; // Scatter uses raw data
+    }
+
     const dataMap = new Map<string | number, any>();
 
     // Collect all unique x values
-    dataSeries.forEach((series) => {
-      series.data.forEach((point) => {
+    dataSeries.forEach(series => {
+      series.data.forEach(point => {
         if (!dataMap.has(point.x)) {
           dataMap.set(point.x, { x: point.x });
         }
@@ -91,108 +124,14 @@ export function FinancialChart({
 
     return Array.from(dataMap.values()).sort((a, b) => {
       // Sort by x value (handles both strings and numbers)
-      if (typeof a.x === "string" && typeof b.x === "string") {
-        // Enhanced date parsing for multiple formats
-        const parseDate = (dateStr: string): Date | null => {
-          // Try multiple date formats
-          const formats = [
-            // ISO format
-            (str: string) => new Date(str),
-            // DD/MM/YYYY format
-            (str: string) => {
-              const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-              if (match) {
-                const [, day, month, year] = match;
-                const dayNum = parseInt(day);
-                const monthNum = parseInt(month);
-                const yearNum = parseInt(year);
-
-                // Validate that day <= 31 and month <= 12 (basic validation)
-                if (dayNum <= 31 && monthNum <= 12) {
-                  const parsedDate = new Date(yearNum, monthNum - 1, dayNum);
-                  // Additional validation: check if the parsed date components match
-                  if (
-                    parsedDate.getDate() === dayNum &&
-                    parsedDate.getMonth() === monthNum - 1
-                  ) {
-                    return parsedDate;
-                  }
-                }
-              }
-              return null;
-            },
-            // MM/DD/YYYY format
-            (str: string) => {
-              const match = str.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
-              if (match) {
-                const [, month, day, year] = match;
-                const monthNum = parseInt(month);
-                const dayNum = parseInt(day);
-                const yearNum = parseInt(year);
-
-                // Validate that month <= 12 and day <= 31 (basic validation)
-                if (monthNum <= 12 && dayNum <= 31) {
-                  const parsedDate = new Date(yearNum, monthNum - 1, dayNum);
-                  // Additional validation: check if the parsed date components match
-                  if (
-                    parsedDate.getMonth() === monthNum - 1 &&
-                    parsedDate.getDate() === dayNum
-                  ) {
-                    return parsedDate;
-                  }
-                }
-              }
-              return null;
-            },
-            // YYYY-MM-DD format
-            (str: string) => {
-              const match = str.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
-              if (match) {
-                const [, year, month, day] = match;
-                return new Date(
-                  parseInt(year),
-                  parseInt(month) - 1,
-                  parseInt(day)
-                );
-              }
-              return null;
-            },
-          ];
-
-          for (const format of formats) {
-            try {
-              const date = format(dateStr);
-              if (date && !isNaN(date.getTime())) {
-                return date;
-              }
-            } catch (e) {
-              // Continue to next format
-            }
-          }
-          return null;
-        };
-
-        const dateA = parseDate(a.x);
-        const dateB = parseDate(b.x);
-
-        // If both are valid dates, sort chronologically (earliest first)
-        if (dateA && dateB) {
-          console.log(
-            `[Chart Sorting] Parsing dates: "${
-              a.x
-            }" -> ${dateA.toISOString()}, "${b.x}" -> ${dateB.toISOString()}`
-          );
-          return dateA.getTime() - dateB.getTime();
-        }
-
-        // Fallback to string comparison for non-date strings
+      if (typeof a.x === 'string' && typeof b.x === 'string') {
         return a.x.localeCompare(b.x);
       }
       return Number(a.x) - Number(b.x);
     });
-  }, [dataSeries]);
+  }, [dataSeries, chartType]);
 
-  // Create chart config for shadcn with default colors
+  // Create chart config for shadcn with professional colors
   const chartConfig = React.useMemo(() => {
     const config: ChartConfig = {};
     dataSeries.forEach((series, index) => {
@@ -204,28 +143,73 @@ export function FinancialChart({
     return config;
   }, [dataSeries]);
 
+  // Calculate min/max for scatter charts
+  const scatterMetrics = React.useMemo(() => {
+    if (chartType !== 'scatter' && chartType !== 'quadrant') {
+      return null;
+    }
+
+    // Filter out points without y values (scatter/quadrant requires y)
+    const validPoints = dataSeries.flatMap(s =>
+      s.data.filter(d => d.y !== undefined && d.y !== null)
+    );
+
+    if (validPoints.length === 0) {
+      return null;
+    }
+
+    const allXValues = validPoints.map(d => Number(d.x));
+    const allYValues = validPoints.map(d => d.y!); // Safe because we filtered
+    const allSizes = validPoints.map(d => d.size || 100);
+
+    const minX = Math.min(...allXValues);
+    const maxX = Math.max(...allXValues);
+    const minY = Math.min(...allYValues);
+    const maxY = Math.max(...allYValues);
+    const minZ = Math.min(...allSizes);
+    const maxZ = Math.max(...allSizes);
+
+    // Add 20% padding for better spacing
+    const xRange = maxX - minX;
+    const yRange = maxY - minY;
+    const xPadding = Math.max(xRange * 0.2, 0.5);
+    const yPadding = Math.max(yRange * 0.2, 0.5);
+
+    return {
+      minX: Math.floor(minX - xPadding),
+      maxX: Math.ceil(maxX + xPadding),
+      minY: Math.floor(minY - yPadding),
+      maxY: Math.ceil(maxY + yPadding),
+      minZ,
+      maxZ,
+      xMid: (minX + maxX) / 2,
+      yMid: (minY + maxY) / 2,
+    };
+  }, [dataSeries, chartType]);
+
   const renderChart = (): JSX.Element => {
     const commonProps = {
       data: transformedData,
-      margin: { top: 20, right: 30, left: 20, bottom: 5 },
+      margin: { top: 20, right: 30, left: 20, bottom: 20 },
     };
 
     switch (chartType) {
-      case "line":
+      case 'line':
         return (
           <LineChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} vertical={false} />
             <XAxis
               dataKey="x"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
               tickLine={false}
-              axisLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
-            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              labelFormatter={(value) => `${xAxisLabel}: ${value}`}
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
+            <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
             {dataSeries.map((series, index) => (
               <Line
@@ -235,57 +219,58 @@ export function FinancialChart({
                 stroke={DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
                 strokeWidth={2}
                 dot={false}
-                activeDot={{
-                  r: 6,
-                  fill: DEFAULT_COLORS[index % DEFAULT_COLORS.length],
-                }}
+                activeDot={{ r: 4, fill: DEFAULT_COLORS[index % DEFAULT_COLORS.length] }}
+                isAnimationActive={false}
               />
             ))}
           </LineChart>
         );
 
-      case "bar":
+      case 'bar':
         return (
           <BarChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} vertical={false} />
             <XAxis
               dataKey="x"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
               tickLine={false}
-              axisLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
-            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              labelFormatter={(value) => `${xAxisLabel}: ${value}`}
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
+            <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
             {dataSeries.map((series, index) => (
               <Bar
                 key={series.name}
                 dataKey={series.name}
                 fill={DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
-                radius={[2, 2, 0, 0]}
+                radius={[4, 4, 0, 0]}
+                isAnimationActive={false}
               />
             ))}
           </BarChart>
         );
 
-      case "area":
+      case 'area':
         return (
           <AreaChart {...commonProps}>
-            <CartesianGrid strokeDasharray="3 3" />
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} vertical={false} />
             <XAxis
               dataKey="x"
-              tick={{ fontSize: 12 }}
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
               tickLine={false}
-              axisLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
-            <YAxis tick={{ fontSize: 12 }} tickLine={false} axisLine={false} />
-            <ChartTooltip
-              content={<ChartTooltipContent />}
-              labelFormatter={(value) => `${xAxisLabel}: ${value}`}
+            <YAxis
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
             />
+            <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
             {dataSeries.map((series, index) => (
               <Area
@@ -294,11 +279,146 @@ export function FinancialChart({
                 dataKey={series.name}
                 stroke={DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
                 fill={DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
-                fillOpacity={0.3}
+                fillOpacity={0.2}
                 strokeWidth={2}
+                isAnimationActive={false}
               />
             ))}
           </AreaChart>
+        );
+
+      case 'scatter':
+      case 'quadrant':
+        if (!scatterMetrics) return <div>Loading scatter chart...</div>;
+
+        return (
+          <ScatterChart margin={{ top: 30, right: 40, left: 40, bottom: 60 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" opacity={0.3} />
+            <XAxis
+              type="number"
+              dataKey="x"
+              name={xAxisLabel}
+              domain={[scatterMetrics.minX, scatterMetrics.maxX]}
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
+              label={{ value: xAxisLabel, position: 'bottom', offset: -10, style: { fontSize: 12, fill: '#6b7280' } }}
+            />
+            <YAxis
+              type="number"
+              dataKey="y"
+              name={yAxisLabel}
+              domain={[scatterMetrics.minY, scatterMetrics.maxY]}
+              tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
+              tickLine={false}
+              axisLine={{ stroke: '#e5e7eb' }}
+              label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { fontSize: 12, fill: '#6b7280' } }}
+            />
+            <ZAxis type="number" dataKey="z" range={[64, 1600]} name="Size" />
+            <ChartTooltip
+              cursor={{ strokeDasharray: '3 3' }}
+              content={({ active, payload }) => {
+                if (active && payload && payload.length) {
+                  const data = payload[0].payload;
+                  return (
+                    <div className="rounded-lg border bg-white/98 p-3 shadow-lg">
+                      <div className="text-sm font-semibold mb-2">{data.label || data.name}</div>
+                      <div className="space-y-1 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-2 h-2 rounded-full" style={{ backgroundColor: data.fill }} />
+                          <span className="text-gray-600">Category:</span>
+                          <span className="font-medium">{data.category}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">{xAxisLabel}:</span>
+                          <span className="font-medium">{Number(data.x).toFixed(2)}</span>
+                        </div>
+                        <div className="flex justify-between gap-4">
+                          <span className="text-gray-600">{yAxisLabel}:</span>
+                          <span className="font-medium">{(data.y ?? 0).toFixed(2)}</span>
+                        </div>
+                        {data.z && (
+                          <div className="flex justify-between gap-4">
+                            <span className="text-gray-600">Size:</span>
+                            <span className="font-medium">{data.z.toLocaleString()}</span>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                }
+                return null;
+              }}
+            />
+            <ChartLegend content={<ChartLegendContent />} />
+
+            {/* Reference lines for quadrant chart */}
+            {chartType === 'quadrant' && (
+              <>
+                <ReferenceLine
+                  x={scatterMetrics.xMid}
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                />
+                <ReferenceLine
+                  y={scatterMetrics.yMid}
+                  stroke="#94a3b8"
+                  strokeWidth={2}
+                  strokeDasharray="5 5"
+                />
+              </>
+            )}
+
+            {dataSeries.map((series, seriesIndex) => {
+              const seriesColor = DEFAULT_COLORS[seriesIndex % DEFAULT_COLORS.length];
+              // Filter out points without y values (required for scatter/quadrant)
+              const seriesData = series.data
+                .filter(point => point.y !== undefined && point.y !== null)
+                .map(point => ({
+                  x: point.x,
+                  y: point.y!,  // Safe because we filtered
+                  z: point.size || 100,
+                  label: point.label || series.name,
+                  category: series.name,
+                  name: point.label || series.name,
+                  fill: seriesColor,
+                }));
+
+              return (
+                <Scatter
+                  key={series.name}
+                  name={series.name}
+                  data={seriesData}
+                  fill={seriesColor}
+                  isAnimationActive={false}
+                  shape={(props: any) => {
+                    const { cx, cy, fill } = props;
+                    const z = props.payload.z || 100;
+
+                    // Power scale for bubble sizing (0.6 exponent)
+                    const minRadius = 8;
+                    const maxRadius = 40;
+                    const normalizedZ = (Math.pow(z, 0.6) - Math.pow(scatterMetrics.minZ, 0.6)) /
+                                       (Math.pow(scatterMetrics.maxZ, 0.6) - Math.pow(scatterMetrics.minZ, 0.6));
+                    const radius = minRadius + normalizedZ * (maxRadius - minRadius);
+
+                    return (
+                      <circle
+                        cx={cx}
+                        cy={cy}
+                        r={radius}
+                        fill={fill}
+                        stroke="#fff"
+                        strokeWidth={2}
+                        opacity={0.85}
+                      />
+                    );
+                  }}
+                />
+              );
+            })}
+          </ScatterChart>
         );
 
       default:
@@ -311,36 +431,95 @@ export function FinancialChart({
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">📈 {title}</CardTitle>
-        {description && <CardDescription>{description}</CardDescription>}
-        {metadata && (
-          <div className="text-xs text-muted-foreground space-y-1">
-            <div>
-              {metadata.totalSeries} series • {metadata.totalDataPoints} data
-              points
+    <div className="w-full">
+      <div ref={chartRef} className="w-full bg-gradient-to-br from-white to-gray-50/30 dark:from-gray-900 dark:to-gray-900/80 rounded-xl border border-gray-200/80 dark:border-gray-700/50 overflow-hidden shadow-sm">
+        {/* Elegant Header */}
+        <div className="px-6 pt-5 pb-4 border-b border-gray-200/60 dark:border-gray-700/50">
+          <div className="flex gap-4 items-start justify-between">
+            {/* Left: Title + Description */}
+            <div className="flex-1 min-w-0">
+              <h3 className="text-lg font-semibold text-gray-900 dark:text-gray-100 mb-1.5">
+                {title}
+              </h3>
+              {description && (
+                <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
+                  {description}
+                </p>
+              )}
+
+              {/* Metadata Badges - Refined */}
+              {metadata && (
+                <div className="flex flex-wrap gap-1.5 mt-2.5">
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    {metadata.totalSeries} {metadata.totalSeries === 1 ? 'Series' : 'Series'}
+                  </span>
+                  <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                    {metadata.totalDataPoints} Points
+                  </span>
+                  {metadata.dateRange && (
+                    <span className="inline-flex items-center px-2 py-0.5 text-[10px] font-medium rounded-md bg-gray-100 dark:bg-gray-800 text-gray-700 dark:text-gray-300">
+                      {metadata.dateRange.start} → {metadata.dateRange.end}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
-            {metadata.dateRange && (
-              <div>
-                Range: {metadata.dateRange.start} → {metadata.dateRange.end}
-              </div>
-            )}
-          </div>
-        )}
-      </CardHeader>
-      <CardContent>
-        <div className="h-[400px] w-full border border-gray-200 rounded-lg bg-white dark:bg-gray-900">
-          <ChartContainer config={chartConfig} className="h-full w-full">
-            {renderChart()}
-          </ChartContainer>
-        </div>
-        <div className="mt-4 text-center">
-          <div className="text-xs text-muted-foreground">
-            {xAxisLabel} vs {yAxisLabel}
+
+            {/* Right: Logo */}
+            <div className="flex items-center justify-center flex-shrink-0">
+              <Image
+                src="/valyu.svg"
+                alt="Valyu"
+                width={70}
+                height={70}
+                className="opacity-80"
+              />
+            </div>
           </div>
         </div>
-      </CardContent>
-    </Card>
+
+        {/* Chart Container - Spacious and clean */}
+        <div className="p-6">
+          <div className="h-[400px] w-full">
+            <ChartContainer config={chartConfig} className="h-full w-full">
+              {renderChart()}
+            </ChartContainer>
+          </div>
+        </div>
+      </div>
+
+      {/* Download Button - Below chart, OUTSIDE the ref */}
+      {!hideDownloadButton && (
+        <div className="mt-3 px-2">
+          <button
+            onClick={handleDownload}
+            disabled={isDownloading}
+            className="w-full py-2 px-4 rounded-lg bg-gray-100 hover:bg-gray-200 dark:bg-gray-800 dark:hover:bg-gray-700
+                       border border-gray-200 dark:border-gray-700 transition-colors
+                       disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+          >
+            <Download className="w-3.5 h-3.5 text-gray-600 dark:text-gray-400" />
+            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+              {isDownloading ? 'Downloading...' : 'Download Chart'}
+            </span>
+          </button>
+        </div>
+      )}
+    </div>
   );
 }
+
+// Memoize the component to prevent unnecessary re-renders
+export const BiomedicalChart = React.memo(BiomedicalChartComponent, (prevProps, nextProps) => {
+  return (
+    prevProps.chartType === nextProps.chartType &&
+    prevProps.title === nextProps.title &&
+    prevProps.xAxisLabel === nextProps.xAxisLabel &&
+    prevProps.yAxisLabel === nextProps.yAxisLabel &&
+    prevProps.description === nextProps.description &&
+    JSON.stringify(prevProps.dataSeries) === JSON.stringify(nextProps.dataSeries) &&
+    JSON.stringify(prevProps.metadata) === JSON.stringify(nextProps.metadata)
+  );
+});
+
+BiomedicalChart.displayName = 'BiomedicalChart';

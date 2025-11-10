@@ -24,7 +24,7 @@ export function ShareButton({ query, className }: ShareButtonProps) {
   const shareOnX = (e: React.MouseEvent) => {
     e.preventDefault();
     const url = getCurrentUrl();
-    const text = '@ValyuNetwork just launched! Here\'s a demo app built on top of their API that provides value at the speed of now. Check it out!';
+    const text = 'Yo @ValyuNetwork just put bloomberg-grade data behind a chatbot and open sourced it 👉';
     const twitterUrl = `https://twitter.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
     window.open(twitterUrl, '_blank', 'width=550,height=420');
   };
@@ -36,7 +36,6 @@ export function ShareButton({ query, className }: ShareButtonProps) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch (err) {
-      console.error('Failed to copy URL:', err);
     }
   };
 

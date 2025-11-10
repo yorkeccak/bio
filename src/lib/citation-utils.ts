@@ -11,7 +11,7 @@ export interface Citation {
   authors?: string[];
   doi?: string;
   relevanceScore?: number;
-  toolType?: 'financial' | 'web' | 'wiley' | 'clinical-trials' | 'drug-info' | 'biomedical' | 'pharma' | 'healthcare';
+  toolType?: 'clinical' | 'drug' | 'literature' | 'web';
 }
 
 export interface CitationMap {
@@ -62,7 +62,6 @@ export function extractCitationsFromToolResults(toolResults: any[]): CitationMap
         });
       }
     } catch (error) {
-      console.error('Error extracting citations from tool result:', error);
     }
   });
 
@@ -70,13 +69,14 @@ export function extractCitationsFromToolResults(toolResults: any[]): CitationMap
 }
 
 // Get tool type from tool name
-function getToolType(toolName?: string): 'financial' | 'web' | 'wiley' | undefined {
+function getToolType(toolName?: string): 'clinical' | 'drug' | 'literature' | 'web' | undefined {
   if (!toolName) return undefined;
-  
-  if (toolName.toLowerCase().includes('financial')) return 'financial';
-  if (toolName.toLowerCase().includes('wiley')) return 'wiley';
+
+  if (toolName.toLowerCase().includes('clinical')) return 'clinical';
+  if (toolName.toLowerCase().includes('drug')) return 'drug';
+  if (toolName.toLowerCase().includes('literature') || toolName.toLowerCase().includes('biomedical')) return 'literature';
   if (toolName.toLowerCase().includes('web')) return 'web';
-  
+
   return undefined;
 }
 

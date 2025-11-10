@@ -95,7 +95,7 @@ export function MissingKeysDialog() {
             <div className="rounded-md border p-3">
               <div className="font-medium">Missing VALYU_API_KEY</div>
               <div className="text-muted-foreground">
-                Add VALYU_API_KEY to your environment to enable financial and
+                Add VALYU_API_KEY to your environment to enable biomedical data and
                 web search.
               </div>
             </div>
@@ -165,7 +165,7 @@ export function MissingKeysDialog() {
             </a>
           )}
           <a
-            href="https://platform.valyu.network"
+            href="https://platform.valyu.ai"
             target="_blank"
             rel="noreferrer"
           >
