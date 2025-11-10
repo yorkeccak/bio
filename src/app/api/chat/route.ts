@@ -761,6 +761,11 @@ export async function POST(req: Request) {
       streamResponse.headers.set("X-RateLimit-Remaining", "unlimited");
     }
 
+    // Add headers to prevent connection drops when tab is backgrounded
+    streamResponse.headers.set("Connection", "keep-alive");
+    streamResponse.headers.set("X-Accel-Buffering", "no"); // Disable buffering for nginx
+    streamResponse.headers.set("Cache-Control", "no-cache, no-transform"); // Prevent caching that might break streaming
+
     return streamResponse;
   } catch (error) {
     console.error("[Chat API] Error:", error);

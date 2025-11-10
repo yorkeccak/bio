@@ -18,8 +18,8 @@ const nextConfig: NextConfig = {
   },
   // Suppress favicon fetch errors in development
   onDemandEntries: {
-    maxInactiveAge: 25 * 1000,
-    pagesBufferLength: 2,
+    maxInactiveAge: 60 * 1000, // Increased to 60 seconds to prevent page disposal when switching tabs
+    pagesBufferLength: 5, // Increased buffer to keep more pages in memory
   },
 };
 
