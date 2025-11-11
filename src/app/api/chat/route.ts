@@ -371,6 +371,7 @@ export async function POST(req: Request) {
         sessionId,
       },
       providerOptions,
+      // DON'T pass abortSignal - we want the stream to continue even if user switches tabs
       system: `You are a helpful biomedical research assistant with access to comprehensive tools for Python code execution, biomedical data, clinical trials, drug information, scientific literature, web search, and data visualization.
 
       CRITICAL CITATION INSTRUCTIONS:

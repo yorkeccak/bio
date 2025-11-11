@@ -13,46 +13,133 @@ export const healthcareTools = {
   createChart: tool({
     description: `Create interactive charts for biomedical and clinical data visualization.
 
-    CRITICAL: ALL FIVE FIELDS ARE REQUIRED:
-    1. title - Chart title (e.g., "Drug Efficacy Comparison", "Patient Response Rates")
-    2. type - Chart type: "line", "bar", or "area"
-    3. xAxisLabel - X-axis label (e.g., "Time (weeks)", "Treatment Group")
-    4. yAxisLabel - Y-axis label (e.g., "Response Rate (%)", "Survival Probability")
-    5. dataSeries - Array of data series
+    CHART TYPES:
+    1. "line" - Time series trends (patient outcomes over time, survival curves, biomarker levels)
+    2. "bar" - Categorical comparisons (treatment group outcomes, drug efficacy comparison)
+    3. "area" - Cumulative data (stacked metrics, composition over time)
+    4. "scatter" - Correlation analysis, drug positioning maps, patient stratification
+    5. "quadrant" - 2x2 clinical matrices (risk stratification, drug selection matrices)
 
-    Example:
+    TIME SERIES CHARTS (line, bar, area):
     {
-      "title": "CAR-T vs Chemotherapy Response Rates",
+      "title": "Pembrolizumab vs Nivolumab Response Rates",
       "type": "line",
-      "xAxisLabel": "Weeks Since Treatment",
-      "yAxisLabel": "Response Rate (%)",
+      "xAxisLabel": "Weeks Since Treatment Initiation",
+      "yAxisLabel": "Overall Response Rate (%)",
       "dataSeries": [
         {
-          "name": "CAR-T Therapy",
+          "name": "Pembrolizumab",
           "data": [
             {"x": "Week 0", "y": 0},
-            {"x": "Week 4", "y": 65.5}
+            {"x": "Week 4", "y": 32.5},
+            {"x": "Week 12", "y": 45.0}
+          ]
+        },
+        {
+          "name": "Nivolumab",
+          "data": [
+            {"x": "Week 0", "y": 0},
+            {"x": "Week 4", "y": 28.0},
+            {"x": "Week 12", "y": 40.0}
           ]
         }
       ]
-    }`,
+    }
+
+    SCATTER/BUBBLE CHARTS (for positioning, correlation):
+    Each SERIES represents a CATEGORY (for color coding).
+    Each DATA POINT represents an individual entity with x, y, size, and label.
+    {
+      "title": "Drug Candidates: Efficacy vs Safety Profile",
+      "type": "scatter",
+      "xAxisLabel": "Overall Response Rate (%)",
+      "yAxisLabel": "Grade 3+ Adverse Events (%)",
+      "dataSeries": [
+        {
+          "name": "Checkpoint Inhibitors",
+          "data": [
+            {"x": 45.0, "y": 27.3, "size": 5000, "label": "Pembrolizumab"},
+            {"x": 40.0, "y": 25.1, "size": 4500, "label": "Nivolumab"}
+          ]
+        },
+        {
+          "name": "Chemotherapy",
+          "data": [
+            {"x": 35.0, "y": 65.0, "size": 3000, "label": "Carboplatin"}
+          ]
+        }
+      ]
+    }
+
+    QUADRANT CHARTS (2x2 clinical matrix):
+    Same as scatter, but with reference lines dividing chart into 4 quadrants.
+    Use for: Risk stratification, treatment selection, drug prioritization.
+
+    CRITICAL: ALL REQUIRED FIELDS MUST BE PROVIDED.`,
     inputSchema: z.object({
-      title: z.string().describe('Chart title'),
-      type: z.enum(["line", "bar", "area"]).describe('Chart type'),
-      xAxisLabel: z.string().describe('X-axis label'),
-      yAxisLabel: z.string().describe('Y-axis label'),
-      dataSeries: z.array(
-        z.object({
-          name: z.string().describe('Series name'),
-          data: z.array(
-            z.object({
-              x: z.union([z.string(), z.number()]).describe('X-axis value'),
-              y: z.number().describe('Y-axis numeric value'),
-            })
-          ).describe('Array of data points'),
-        })
-      ).describe('REQUIRED: Array of data series'),
-      description: z.string().optional().describe('Optional description'),
+      title: z
+        .string()
+        .describe('Chart title (e.g., "Pembrolizumab vs Nivolumab Response Rates")'),
+      type: z
+        .enum(["line", "bar", "area", "scatter", "quadrant"])
+        .describe(
+          'Chart type: "line" (time series), "bar" (comparisons), "area" (cumulative), "scatter" (positioning/correlation), "quadrant" (2x2 matrix)'
+        ),
+      xAxisLabel: z
+        .string()
+        .describe('X-axis label (e.g., "Weeks", "Response Rate (%)", "Risk Score (1-10)")'),
+      yAxisLabel: z
+        .string()
+        .describe(
+          'Y-axis label (e.g., "Survival Probability", "Adverse Events (%)", "Efficacy Score (1-10)")'
+        ),
+      dataSeries: z
+        .array(
+          z.object({
+            name: z
+              .string()
+              .describe(
+                'Series name - For time series: drug/treatment name. For scatter/quadrant: category name for color coding (e.g., "Checkpoint Inhibitors", "Chemotherapy")'
+              ),
+            data: z
+              .array(
+                z.object({
+                  x: z
+                    .union([z.string(), z.number()])
+                    .describe(
+                      'X-axis value - Date/time string for time series, numeric value for scatter/quadrant'
+                    ),
+                  y: z
+                    .number()
+                    .describe(
+                      "Y-axis numeric value - response rate, survival %, score, etc. REQUIRED for all chart types."
+                    ),
+                  size: z
+                    .number()
+                    .optional()
+                    .describe(
+                      'Bubble size for scatter/quadrant charts (e.g., patient count, trial size, market size). Larger = bigger bubble.'
+                    ),
+                  label: z
+                    .string()
+                    .optional()
+                    .describe(
+                      'Individual entity name for scatter/quadrant charts (e.g., "Pembrolizumab", "Patient Cohort A"). Displayed on/near bubble.'
+                    ),
+                })
+              )
+              .describe(
+                "Array of data points. For time series: {x: date, y: value}. For scatter/quadrant: {x, y, size, label}."
+              ),
+          })
+        )
+        .describe(
+          "REQUIRED: Array of data series. For scatter/quadrant: each series = category for color coding, each point = individual entity"
+        ),
+      description: z
+        .string()
+        .optional()
+        .describe("Optional description explaining what the chart shows"),
     }),
     execute: async ({
       title,
@@ -65,12 +152,35 @@ export const healthcareTools = {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
 
+      // Calculate metadata based on chart type
+      let dateRange = null;
+      if (type === 'scatter' || type === 'quadrant') {
+        // For scatter/quadrant charts, show x and y axis ranges
+        const allXValues = dataSeries.flatMap(s => s.data.map(d => Number(d.x)));
+        const allYValues = dataSeries.flatMap(s => s.data.map(d => d.y ?? 0));
+        if (allXValues.length > 0 && allYValues.length > 0) {
+          dateRange = {
+            start: `X: ${Math.min(...allXValues).toFixed(1)}-${Math.max(...allXValues).toFixed(1)}`,
+            end: `Y: ${Math.min(...allYValues).toFixed(1)}-${Math.max(...allYValues).toFixed(1)}`,
+          };
+        }
+      } else {
+        // For time series charts, show date/label range
+        if (dataSeries.length > 0 && dataSeries[0].data.length > 0) {
+          dateRange = {
+            start: dataSeries[0].data[0].x,
+            end: dataSeries[0].data[dataSeries[0].data.length - 1].x,
+          };
+        }
+      }
+
       await track('Chart Created', {
         chartType: type,
         title: title,
         seriesCount: dataSeries.length,
         totalDataPoints: dataSeries.reduce((sum, series) => sum + series.data.length, 0),
         hasDescription: !!description,
+        hasScatterData: dataSeries.some(s => s.data.some(d => d.size || d.label)),
       });
 
       const chartData = {
@@ -83,6 +193,7 @@ export const healthcareTools = {
         metadata: {
           totalSeries: dataSeries.length,
           totalDataPoints: dataSeries.reduce((sum, series) => sum + series.data.length, 0),
+          dateRange,
         },
       };
 

@@ -159,7 +159,7 @@ export function EnterpriseContactModal({ open, onClose }: EnterpriseContactModal
                   Enterprise AI Search Infrastructure
                 </h2>
                 <p className="text-gray-600 dark:text-gray-400 text-sm max-w-md mx-auto">
-                  Deploy institutional-grade biomedical search and AI agents in your organization
+                  Deploy enterprise-grade biomedical search and AI agents in your organization
                 </p>
               </div>
 

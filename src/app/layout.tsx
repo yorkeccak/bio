@@ -29,7 +29,7 @@ export const metadata: Metadata = {
     template: "%s | BioMed Research AI",
   },
   description:
-    "Institutional-grade biomedical research AI with access to PubMed, clinical trials, FDA drug labels, secure Python execution, and interactive visualizations for comprehensive research.",
+    "Enterprise-grade biomedical research AI with access to PubMed, clinical trials, FDA drug labels, secure Python execution, and interactive visualizations for comprehensive research.",
   applicationName: "BioMed Research AI",
   openGraph: {
     title: "BioMed Research AI",

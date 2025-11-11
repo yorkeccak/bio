@@ -790,6 +790,7 @@ const MemoizedTextPartWithCitations = memo(
       if (allMessages && currentMessageIndex !== undefined) {
         for (let msgIdx = 0; msgIdx <= currentMessageIndex; msgIdx++) {
           const msg = allMessages[msgIdx];
+          if (!msg) continue; // Skip if message doesn't exist
           const parts = msg.parts || (Array.isArray(msg.content) ? msg.content : []);
 
 
@@ -2052,23 +2053,30 @@ export function ChatInterface({
     onMessagesChange?.(messages.length > 0);
   }, [messages.length]); // Remove onMessagesChange from dependencies to prevent infinite loops
 
-  // Handle page visibility changes to prevent crashes when switching tabs
+  // Track page visibility to reduce re-renders in background
+  const [isPageVisible, setIsPageVisible] = useState(true);
+
   useEffect(() => {
     const handleVisibilityChange = () => {
+      const visible = !document.hidden;
+      setIsPageVisible(visible);
+
       if (document.hidden) {
-        // Page is hidden (tab switched away)
-        console.log('[Chat Interface] Page hidden - pausing expensive operations');
+        // Page is hidden (tab switched away) - stream continues in background
+        console.log('[Chat Interface] Page hidden - reducing re-render frequency to prevent crash');
       } else {
         // Page is visible again (tab switched back)
-        console.log('[Chat Interface] Page visible - resuming operations');
+        console.log('[Chat Interface] Page visible again - resuming normal updates');
 
-        // Check if streaming is active and reconnect if needed
+        // Check if streaming was active
         if (status === 'submitted' || status === 'streaming') {
-          console.log('[Chat Interface] Streaming was active when tab was backgrounded');
-          // The streaming should continue, but we log for debugging
+          console.log('[Chat Interface] Stream still active - UI will update with any buffered data');
         }
       }
     };
+
+    // Set initial visibility
+    setIsPageVisible(!document.hidden);
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
 
@@ -2087,7 +2095,10 @@ export function ChatInterface({
   // Tracks whether we should stick to bottom (true when user is at bottom)
   const shouldStickToBottomRef = useRef<boolean>(true);
   // Defer messages to keep input responsive during streaming
+  // When page is hidden, aggressively defer to prevent memory buildup
   const deferredMessages = useDeferredValue(messages);
+  // Use original messages when visible, deferred when hidden to reduce re-renders
+  const displayMessages = isPageVisible ? messages : deferredMessages;
   // Lightweight virtualization for long threads
   const virtualizationEnabled = deferredMessages.length > 60;
   const [avgRowHeight, setAvgRowHeight] = useState<number>(140);
@@ -2960,7 +2971,7 @@ export function ChatInterface({
                   item: message,
                   realIndex: visibleRange.start + i,
                 }))
-            : deferredMessages.map((m, i) => ({ item: m, realIndex: i }))
+            : displayMessages.map((m, i) => ({ item: m, realIndex: i }))
           ).map(({ item: message, realIndex }) => (
             <motion.div
               key={message.id}

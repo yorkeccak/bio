@@ -203,11 +203,13 @@ function BiomedicalChartComponent({
               tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
               tickLine={false}
               axisLine={{ stroke: '#e5e7eb' }}
+              label={{ value: xAxisLabel, position: 'insideBottom', offset: -5, style: { fontSize: 11, fill: '#6b7280' } }}
             />
             <YAxis
               tick={{ fontSize: 11, fill: '#6b7280', fontWeight: 500 }}
               tickLine={false}
               axisLine={{ stroke: '#e5e7eb' }}
+              label={{ value: yAxisLabel, angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#6b7280' } }}
             />
             <ChartTooltip content={<ChartTooltipContent />} />
             <ChartLegend content={<ChartLegendContent />} />
@@ -217,10 +219,11 @@ function BiomedicalChartComponent({
                 type="monotone"
                 dataKey={series.name}
                 stroke={DEFAULT_COLORS[index % DEFAULT_COLORS.length]}
-                strokeWidth={2}
-                dot={false}
-                activeDot={{ r: 4, fill: DEFAULT_COLORS[index % DEFAULT_COLORS.length] }}
+                strokeWidth={2.5}
+                dot={{ r: 3, fill: DEFAULT_COLORS[index % DEFAULT_COLORS.length], strokeWidth: 0 }}
+                activeDot={{ r: 5, fill: DEFAULT_COLORS[index % DEFAULT_COLORS.length] }}
                 isAnimationActive={false}
+                connectNulls={true}
               />
             ))}
           </LineChart>
