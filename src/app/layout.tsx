@@ -25,24 +25,24 @@ export const metadata: Metadata = {
     process.env.NEXT_PUBLIC_APP_URL || "http://localhost:3000"
   ),
   title: {
-    default: "BioMed Research AI",
-    template: "%s | BioMed Research AI",
+    default: "Bio | By Valyu",
+    template: "%s | Bio | By Valyu",
   },
   description:
     "Enterprise-grade biomedical research AI with access to PubMed, clinical trials, FDA drug labels, secure Python execution, and interactive visualizations for comprehensive research.",
-  applicationName: "BioMed Research AI",
+  applicationName: "Bio | By Valyu",
   openGraph: {
-    title: "BioMed Research AI",
+    title: "Bio | By Valyu",
     description:
       "Access PubMed articles, clinical trials, FDA drug labels, and more. AI-powered biomedical research with secure Python execution and interactive visualizations.",
     url: "/",
-    siteName: "BioMed Research AI",
+    siteName: "Bio | By Valyu",
     images: [
       {
         url: "/valyu.png",
         width: 1200,
         height: 630,
-        alt: "BioMed Research AI",
+        alt: "Bio | By Valyu",
       },
     ],
     locale: "en_US",
@@ -50,7 +50,7 @@ export const metadata: Metadata = {
   },
   twitter: {
     card: "summary_large_image",
-    title: "BioMed Research AI",
+    title: "Bio | By Valyu",
     description:
       "AI-powered biomedical research. Access PubMed, clinical trials, FDA drug labels. Secure Python execution in Daytona sandboxes for statistical analysis and visualizations.",
     images: ["/valyu.png"],
