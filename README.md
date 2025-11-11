@@ -1,14 +1,14 @@
-# BioMed Research AI
+# Bio
 
 > **Enterprise-grade biomedical research behind a chat interface** - Access PubMed, clinical trials, FDA drug labels, and run complex Python analyses through natural language. Powered by specialized biomedical data APIs.
 
 🚀 **[Try the live demo](#)** *(Coming soon)*
 
-![BioMed Research AI](public/valyu.png)
+![Bio](public/valyu.png)
 
-## Why BioMed Research AI?
+## Why Bio?
 
-Traditional biomedical research is fragmented across dozens of databases and platforms. BioMed Research AI changes everything by providing:
+Traditional biomedical research is fragmented across dozens of databases and platforms. Bio changes everything by providing:
 
 - **🔬 Comprehensive Medical Data** - PubMed articles, ClinicalTrials.gov data, FDA drug labels, and more
 - **🔍 One Unified Search** - Powered by Valyu's specialized biomedical data API
@@ -40,7 +40,7 @@ Traditional biomedical research is fragmented across dozens of databases and pla
 
 ### Two Modes: Production vs Development
 
-BioMed Research AI supports two distinct operating modes:
+Bio supports two distinct operating modes:
 
 **🌐 Production Mode** (Default)
 - Uses Supabase for authentication and database
@@ -189,7 +189,7 @@ When `NEXT_PUBLIC_APP_MODE=development`:
 
 ### Choosing Between Ollama and LM Studio
 
-BioMed Research AI supports both **Ollama** and **LM Studio** for running local LLMs. Both are free, private, and work offline - choose based on your preferences:
+Bio supports both **Ollama** and **LM Studio** for running local LLMs. Both are free, private, and work offline - choose based on your preferences:
 
 **🦙 Ollama** - Best for developers and terminal users
 - ✅ Lightweight and fast
@@ -209,7 +209,7 @@ BioMed Research AI supports both **Ollama** and **LM Studio** for running local 
 - ❌ Slightly more resource intensive
 - ❌ GUI required (not headless)
 
-**💡 You can use both!** BioMed Research AI detects both automatically and lets you switch between them with a provider selector in the UI.
+**💡 You can use both!** Bio detects both automatically and lets you switch between them with a provider selector in the UI.
 
 ### Setting Up Ollama
 
@@ -226,9 +226,9 @@ Ollama provides unlimited, private LLM inference on your local machine - complet
    - Open Ollama app and browse available models
    - Download `qwen2.5:7b` (recommended - best for biomedical research with tool support)
    - Or choose from: `llama3.1`, `mistral`, `deepseek-r1`
-   - That's it! BioMed Research AI will automatically detect and use it
+   - That's it! Bio will automatically detect and use it
 
-3. **Use in BioMed Research AI**
+3. **Use in Bio**
    - Start the app in development mode
    - Ollama status indicator appears in top-right corner
    - Shows your available models
@@ -256,7 +256,7 @@ ollama pull deepseek-r1:7b      # For reasoning/thinking mode
 ```
 
 **💡 It Just Works:**
-- BioMed Research AI automatically detects Ollama when it's running
+- Bio automatically detects Ollama when it's running
 - No configuration needed
 - Automatically falls back to OpenAI if Ollama is unavailable
 - Switch between models anytime via the local models popup
@@ -289,9 +289,18 @@ LM Studio provides a beautiful GUI for running local LLMs - perfect if you prefe
    ![LM Studio Start Server](public/lmstudio-start.png)
 
    - Server starts immediately - you'll see the status change to "Running"
-   - That's it! BioMed Research AI will automatically detect it
+   - That's it! Bio will automatically detect it
 
-4. **Use in BioMed Research AI**
+4. **Important: Configure Context Window**
+   - ⚠️ **CRITICAL**: This app uses extensive tool descriptions that require adequate context length
+   - In LM Studio, when loading a model:
+     - Click on the model settings (gear icon)
+     - Set **Context Length** to **at least 8192 tokens** (16384+ recommended)
+     - If you see errors like "tokens to keep is greater than context length", your context window is too small
+   - Without sufficient context length, you'll get errors when the AI tries to use tools
+   - This applies to all models in LM Studio - configure each model individually
+
+5. **Use in Bio**
    - Start the app in development mode
    - Local models indicator appears in top-right corner
    - If both Ollama and LM Studio are running, you'll see a provider switcher
@@ -314,7 +323,7 @@ LM Studio provides a beautiful GUI for running local LLMs - perfect if you prefe
 
 ### Switching Between Providers
 
-If you have both Ollama and LM Studio running, BioMed Research AI automatically detects both and shows a beautiful provider switcher in the local models popup:
+If you have both Ollama and LM Studio running, Bio automatically detects both and shows a beautiful provider switcher in the local models popup:
 
 - **Visual Selection**: Click provider buttons with logos
 - **Seamless Switching**: Switch between providers without reloading
@@ -412,7 +421,7 @@ cp -r .local-data/ .local-data-backup/
 - **LM Studio**: Click LM Studio menu bar icon → "Start Server on Port 1234..."
   - Check LM Studio URL in `.env.local` (default: `http://localhost:1234`)
   - Verify at least one model is downloaded in LM Studio
-  - Server must be running for BioMed Research AI to detect it
+  - Server must be running for Bio to detect it
 
 **Database errors:**
 - Delete and recreate: `rm -rf .local-data/`
@@ -425,7 +434,7 @@ cp -r .local-data/ .local-data-backup/
 
 ## Production Deployment Guide
 
-This guide walks you through setting up BioMed Research AI for production with full authentication, billing, and database functionality.
+This guide walks you through setting up Bio for production with full authentication, billing, and database functionality.
 
 ### 1. Get API Keys
 
@@ -648,7 +657,7 @@ POLAR_UNLIMITED_PRODUCT_ID=prod_xxxxxxxxxxxxxxxxxxxxx
 
 ## 💡 Example Queries
 
-Try these powerful queries to see what BioMed Research AI can do:
+Try these powerful queries to see what Bio can do:
 
 - "What are the latest clinical trials for CAR-T therapy in melanoma?"
 - "Find recent PubMed papers on CRISPR gene editing safety"

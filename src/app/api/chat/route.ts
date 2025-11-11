@@ -183,7 +183,13 @@ export async function POST(req: Request) {
 
           if (lmstudioResponse.ok) {
             const data = await lmstudioResponse.json();
-            models = data.data.map((m: any) => ({ name: m.id })) || [];
+            // Filter out embedding models - only keep chat/LLM models
+            const allModels = data.data.map((m: any) => ({ name: m.id })) || [];
+            models = allModels.filter((m: any) =>
+              !m.name.includes('embed') &&
+              !m.name.includes('embedding') &&
+              !m.name.includes('nomic')
+            );
             providerName = 'LM Studio';
             baseURL = `${lmstudioBaseUrl}/v1`;
           } else {
@@ -245,6 +251,12 @@ export async function POST(req: Request) {
         }
       } catch (error) {
         // Fallback to OpenAI in development mode
+        console.error(`[Chat API] Local provider error (${localProvider}):`, error);
+        console.log('[Chat API] Headers received:', {
+          'x-ollama-enabled': req.headers.get('x-ollama-enabled'),
+          'x-local-provider': req.headers.get('x-local-provider'),
+          'x-ollama-model': req.headers.get('x-ollama-model')
+        });
         selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
         modelInfo = hasOpenAIKey
           ? "OpenAI (gpt-5) - Development Mode Fallback"

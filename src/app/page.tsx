@@ -55,7 +55,8 @@ function HomeContent() {
     setHasMessages(hasMessages);
 
     // Track message count for non-logged-in users
-    if (!user && hasMessages) {
+    // Only show signup prompt in production
+    if (!user && hasMessages && process.env.NODE_ENV === 'production') {
       const newCount = messageCount + 1;
       setMessageCount(newCount);
 
