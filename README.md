@@ -2,7 +2,7 @@
 
 > **Enterprise-grade biomedical research behind a chat interface** - Access PubMed, clinical trials, FDA drug labels, and run complex Python analyses through natural language. Powered by specialized biomedical data APIs.
 
-🚀 **[Try the live demo](#)** *(Coming soon)*
+🚀 **[Try the live demo](https://bio.valyu.ai)**
 
 ![Bio](public/valyu.png)
 
