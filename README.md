@@ -189,25 +189,7 @@ When `NEXT_PUBLIC_APP_MODE=development`:
 
 ### Choosing Between Ollama and LM Studio
 
-Bio supports both **Ollama** and **LM Studio** for running local LLMs. Both are free, private, and work offline - choose based on your preferences:
-
-**🦙 Ollama** - Best for developers and terminal users
-- ✅ Lightweight and fast
-- ✅ Simple CLI commands
-- ✅ Automatic model management
-- ✅ Great for headless servers
-- ✅ Lower resource usage
-- ❌ Less visual feedback
-- ❌ No built-in GPU monitoring
-
-**🎨 LM Studio** - Best for visual users and beginners
-- ✅ Beautiful GUI with model browser
-- ✅ Real-time GPU/CPU monitoring
-- ✅ Easy model downloading and management
-- ✅ Visual server status and controls
-- ✅ Built-in prompt testing
-- ❌ Slightly more resource intensive
-- ❌ GUI required (not headless)
+Bio supports both **Ollama** and **LM Studio** for running local LLMs. Both are free, private, and work offline - choose based on your preference.
 
 **💡 You can use both!** Bio detects both automatically and lets you switch between them with a provider selector in the UI.
 
