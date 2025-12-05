@@ -2,14 +2,12 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MissingKeysDialog } from "@/components/missing-keys-dialog";
-import { OllamaProvider } from "@/lib/ollama-context";
 import { Analytics } from '@vercel/analytics/next';
 import { AuthInitializer } from "@/components/auth/auth-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { logEnvironmentStatus } from "@/lib/env-validation";
-import { ProviderSelector } from "@/components/providers/provider-selector";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -84,12 +82,9 @@ export default function RootLayout({
           <QueryProvider>
             <AuthInitializer>
               <PostHogProvider>
-                <OllamaProvider>
-                  <MissingKeysDialog />
-                  <ProviderSelector />
-                  {children}
-                  <Analytics />
-                </OllamaProvider>
+                <MissingKeysDialog />
+                {children}
+                <Analytics />
               </PostHogProvider>
             </AuthInitializer>
           </QueryProvider>

@@ -2,7 +2,17 @@
   "permissions": {
     "allow": [
       "mcp__shadcn-ui__list_blocks",
-      "mcp__shadcn-ui__get_block"
+      "mcp__shadcn-ui__get_block",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "mcp__ai-elements__get_ai_elements_components",
+      "mcp__ai-elements__get_ai_elements_component",
+      "WebSearch",
+      "WebFetch(domain:ai-sdk.dev)",
+      "WebFetch(domain:v6.ai-sdk.dev)",
+      "Bash(ls:*)",
+      "Bash(npm install)"
     ],
     "deny": [],
     "ask": []

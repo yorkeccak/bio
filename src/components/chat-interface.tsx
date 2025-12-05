@@ -12,14 +12,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useLocalProvider } from "@/lib/ollama-context";
 import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { useSubscription } from "@/hooks/use-subscription";
 import { createClient } from '@/utils/supabase/client-wrapper';
 import { track } from '@vercel/analytics';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { RateLimitBanner } from '@/components/rate-limit-banner';
-import { ModelCompatibilityDialog } from '@/components/model-compatibility-dialog';
 
 import {
   Dialog,
@@ -1643,11 +1641,6 @@ export function ChatInterface({
   const [isStartingNewChat, setIsStartingNewChat] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [queryStartTime, setQueryStartTime] = useState<number | null>(null);
-  const [modelCompatibilityError, setModelCompatibilityError] = useState<{
-    message: string;
-    compatibilityIssue: string;
-  } | null>(null);
-  const [pendingMessage, setPendingMessage] = useState<string | null>(null);
   const [liveProcessingTime, setLiveProcessingTime] = useState<number>(0);
 
   // Live reasoning preview - no longer needed as global state
@@ -1695,7 +1688,6 @@ export function ChatInterface({
   });
 
 
-  const { selectedModel, selectedProvider } = useLocalProvider();
   const user = useAuthStore((state) => state.user);
   const subscription = useSubscription();
 
@@ -1782,22 +1774,12 @@ export function ChatInterface({
         const { session: newSession } = await response.json();
         
         // Generate better AI title in background (don't wait)
-        const titleHeaders: Record<string, string> = {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session?.access_token}`
-        };
-
-        // Add Ollama preference header if in development mode
-        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'development') {
-          const ollamaEnabled = localStorage.getItem('ollama-enabled');
-          if (ollamaEnabled !== null) {
-            titleHeaders['x-ollama-enabled'] = ollamaEnabled;
-          }
-        }
-
         fetch('/api/chat/generate-title', {
           method: 'POST',
-          headers: titleHeaders,
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session?.access_token}`
+          },
           body: JSON.stringify({ message: firstMessage })
         }).then(async (titleResponse) => {
           if (titleResponse.ok) {
@@ -1829,21 +1811,6 @@ export function ChatInterface({
       api: "/api/chat",
       prepareSendMessagesRequest: async ({ messages }) => {
         const headers: Record<string, string> = {};
-        if (selectedModel) {
-          headers['x-ollama-model'] = selectedModel;
-        }
-
-        // Check if local provider is enabled in localStorage (only in development mode)
-        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'development') {
-          const localEnabled = localStorage.getItem('ollama-enabled');
-          if (localEnabled !== null) {
-            headers['x-ollama-enabled'] = localEnabled;
-          }
-          // Add selected provider
-          if (selectedProvider) {
-            headers['x-local-provider'] = selectedProvider;
-          }
-        }
 
         if (user) {
           const supabase = createClient();
@@ -1863,7 +1830,7 @@ export function ChatInterface({
           headers,
         };
       }
-    }), [selectedModel, selectedProvider, user, increment]
+    }), [user, increment]
   );
 
   const {
@@ -4178,22 +4145,6 @@ export function ChatInterface({
           </div>
         </DialogContent>
       </Dialog>
-
-      {/* Model Compatibility Dialog */}
-      <ModelCompatibilityDialog
-        open={!!modelCompatibilityError}
-        onClose={() => {
-          setModelCompatibilityError(null);
-          setPendingMessage(null);
-        }}
-        onContinue={() => {
-          // TODO: Implement retry without tools
-          setModelCompatibilityError(null);
-          setPendingMessage(null);
-        }}
-        error={modelCompatibilityError?.message || ''}
-        modelName={selectedModel || undefined}
-      />
     </div>
   );
 }

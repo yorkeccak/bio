@@ -146,122 +146,16 @@ export async function POST(req: Request) {
 
     // Detect available API keys and select provider/tools accordingly
     const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
-    const ollamaBaseUrl = process.env.OLLAMA_BASE_URL || 'http://localhost:11434';
-    const lmstudioBaseUrl = process.env.LMSTUDIO_BASE_URL || 'http://localhost:1234';
 
     let selectedModel: any;
     let modelInfo: string;
-    let supportsThinking = false;
 
-    // Check if local models are enabled and which provider to use
-    const localEnabled = req.headers.get('x-ollama-enabled') !== 'false'; // Legacy header name
-    const localProvider = (req.headers.get('x-local-provider') as 'ollama' | 'lmstudio' | null) || 'ollama';
-    const userPreferredModel = req.headers.get('x-ollama-model'); // Works for both providers
-
-    // Models that support thinking/reasoning
-    const thinkingModels = [
-      'deepseek-r1', 'deepseek-v3', 'deepseek-v3.1',
-      'qwen3', 'qwq',
-      'phi4-reasoning', 'phi-4-reasoning',
-      'cogito'
-    ];
-
-    if (isDevelopment && localEnabled) {
-      // Development mode: Try to use local provider (Ollama or LM Studio) first, fallback to OpenAI
-      try {
-        let models: any[] = [];
-        let providerName = '';
-        let baseURL = '';
-
-        // Try selected provider first
-        if (localProvider === 'lmstudio') {
-          // Try LM Studio
-          const lmstudioResponse = await fetch(`${lmstudioBaseUrl}/v1/models`, {
-            method: 'GET',
-            signal: AbortSignal.timeout(3000),
-          });
-
-          if (lmstudioResponse.ok) {
-            const data = await lmstudioResponse.json();
-            // Filter out embedding models - only keep chat/LLM models
-            const allModels = data.data.map((m: any) => ({ name: m.id })) || [];
-            models = allModels.filter((m: any) =>
-              !m.name.includes('embed') &&
-              !m.name.includes('embedding') &&
-              !m.name.includes('nomic')
-            );
-            providerName = 'LM Studio';
-            baseURL = `${lmstudioBaseUrl}/v1`;
-          } else {
-            throw new Error(`LM Studio API responded with status ${lmstudioResponse.status}`);
-          }
-        } else {
-          // Try Ollama
-          const ollamaResponse = await fetch(`${ollamaBaseUrl}/api/tags`, {
-            method: 'GET',
-            signal: AbortSignal.timeout(3000),
-          });
-
-          if (ollamaResponse.ok) {
-            const data = await ollamaResponse.json();
-            models = data.models || [];
-            providerName = 'Ollama';
-            baseURL = `${ollamaBaseUrl}/v1`;
-          } else {
-            throw new Error(`Ollama API responded with status ${ollamaResponse.status}`);
-          }
-        }
-
-        if (models.length > 0) {
-          // Prioritize reasoning models, then other capable models
-          const preferredModels = [
-            'deepseek-r1', 'qwen3', 'phi4-reasoning', 'cogito', // Reasoning models
-            'llama3.1', 'gemma3:4b', 'gemma3', 'llama3.2', 'llama3', 'qwen2.5', 'codestral' // Regular models
-          ];
-          let selectedModelName = models[0].name;
-
-          // Try to find a preferred model
-          if (userPreferredModel && models.some((m: any) => m.name === userPreferredModel)) {
-            selectedModelName = userPreferredModel;
-          } else {
-            for (const preferred of preferredModels) {
-              if (models.some((m: any) => m.name.includes(preferred))) {
-                selectedModelName = models.find((m: any) => m.name.includes(preferred))?.name;
-                break;
-              }
-            }
-          }
-
-          // Check if the selected model supports thinking
-          supportsThinking = thinkingModels.some(thinkModel =>
-            selectedModelName.toLowerCase().includes(thinkModel.toLowerCase())
-          );
-
-          // Create OpenAI-compatible client
-          const localProviderClient = createOpenAI({
-            baseURL: baseURL,
-            apiKey: localProvider === 'lmstudio' ? 'lm-studio' : 'ollama', // Dummy API keys
-          });
-
-          // Create a chat model explicitly
-          selectedModel = localProviderClient.chat(selectedModelName);
-          modelInfo = `${providerName} (${selectedModelName})${supportsThinking ? ' [Reasoning]' : ''} - Development Mode`;
-        } else {
-          throw new Error(`No models available in ${localProvider}`);
-        }
-      } catch (error) {
-        // Fallback to OpenAI in development mode
-        console.error(`[Chat API] Local provider error (${localProvider}):`, error);
-        console.log('[Chat API] Headers received:', {
-          'x-ollama-enabled': req.headers.get('x-ollama-enabled'),
-          'x-local-provider': req.headers.get('x-local-provider'),
-          'x-ollama-model': req.headers.get('x-ollama-model')
-        });
-        selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-        modelInfo = hasOpenAIKey
-          ? "OpenAI (gpt-5) - Development Mode Fallback"
-          : 'Vercel AI Gateway ("gpt-5") - Development Mode Fallback';
-      }
+    if (isDevelopment) {
+      // Development mode: Use OpenAI
+      selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
+      modelInfo = hasOpenAIKey
+        ? "OpenAI (gpt-5) - Development Mode"
+        : 'Vercel AI Gateway ("gpt-5") - Development Mode';
     } else {
       // Production mode: Use Polar-wrapped OpenAI ONLY for pay-per-use users
       if (user) {
@@ -312,35 +206,15 @@ export async function POST(req: Request) {
     console.log(`[Chat API] About to call streamText with model:`, selectedModel);
     console.log(`[Chat API] Model info:`, modelInfo);
 
-    // Build provider options conditionally based on whether we're using local providers
-    const isUsingLocalProvider = isDevelopment && localEnabled && (modelInfo.includes('Ollama') || modelInfo.includes('LM Studio'));
-    const providerOptions: any = {};
-
-    if (isUsingLocalProvider) {
-      // For local models using OpenAI compatibility layer
-      // We need to use the openai provider options since createOpenAI is used
-      if (supportsThinking) {
-        // Enable thinking for reasoning models
-        providerOptions.openai = {
-          think: true
-        };
-        console.log(`[Chat API] Enabled thinking mode for ${localProvider} reasoning model`);
-      } else {
-        // Explicitly disable thinking for non-reasoning models
-        providerOptions.openai = {
-          think: false
-        };
-        console.log(`[Chat API] Disabled thinking mode for ${localProvider} non-reasoning model`);
-      }
-    } else {
-      // OpenAI-specific options (only when using OpenAI)
-      providerOptions.openai = {
+    // OpenAI-specific provider options
+    const providerOptions: any = {
+      openai: {
         store: true,
         reasoningEffort: 'medium',
         reasoningSummary: 'auto',
         include: ['reasoning.encrypted_content'],
-      };
-    }
+      }
+    };
 
     // Save user message immediately (before streaming starts)
     if (user && sessionId && messages.length > 0) {

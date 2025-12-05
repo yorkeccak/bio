@@ -15,7 +15,6 @@ Traditional biomedical research is fragmented across dozens of databases and pla
 - **🐍 Advanced Analytics** - Execute Python code in secure Daytona sandboxes for statistical analysis, pharmacokinetic modeling, and custom calculations
 - **📊 Interactive Visualizations** - Beautiful charts and dashboards for clinical data
 - **🌐 Real-Time Intelligence** - Web search integration for breaking medical news
-- **🏠 Local AI Models** - Run with Ollama or LM Studio for unlimited, private queries using your own hardware
 - **🎯 Natural Language** - Just ask questions like you would to a colleague
 
 ## Key Features
@@ -55,7 +54,6 @@ Bio supports two distinct operating modes:
 - **Unlimited queries** - No rate limits
 - **No billing/tracking** - Polar integration disabled
 - **Works offline** - Complete local development
-- **Ollama/LM Studio integration** - Use local LLMs for privacy and unlimited usage
 
 ### Prerequisites
 
@@ -73,7 +71,6 @@ Bio supports two distinct operating modes:
 - npm or yarn
 - Valyu API key (get one at [platform.valyu.ai](https://platform.valyu.ai))
 - Daytona API key (for code execution)
-- [Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai) installed (optional but recommended)
 
 ### Installation
 
@@ -105,11 +102,7 @@ Bio supports two distinct operating modes:
    DAYTONA_API_URL=https://api.daytona.io  # Optional
    DAYTONA_TARGET=latest  # Optional
 
-   # Local LLM Configuration (Optional - for unlimited, private queries)
-   OLLAMA_BASE_URL=http://localhost:11434   # Default Ollama URL
-   LMSTUDIO_BASE_URL=http://localhost:1234  # Default LM Studio URL
-
-   # OpenAI Configuration (Optional - fallback if local models unavailable)
+   # OpenAI Configuration (Required)
    OPENAI_API_KEY=your-openai-api-key
    ```
 
@@ -158,7 +151,7 @@ Development mode provides a complete local development environment without any e
 - **Local Development** - No Supabase setup required
 - **Offline Work** - All data stored locally in SQLite
 - **Testing Features** - Unlimited queries without billing
-- **Privacy** - Use local Ollama models, no cloud LLM needed
+- **Privacy** - Your data stays local in development mode
 - **Quick Prototyping** - No authentication or rate limits
 
 ### How It Works
@@ -181,159 +174,6 @@ When `NEXT_PUBLIC_APP_MODE=development`:
    - No usage tracking
    - No billing integration
 
-4. **LLM Selection**
-   - **Ollama models** (if installed) - Used first, unlimited and free
-   - **LM Studio models** (if installed) - Alternative local option with GUI
-   - **OpenAI** (if API key provided) - Fallback if no local models available
-   - See local models indicator in top-right corner with provider switching
-
-### Choosing Between Ollama and LM Studio
-
-Bio supports both **Ollama** and **LM Studio** for running local LLMs. Both are free, private, and work offline - choose based on your preference.
-
-**💡 You can use both!** Bio detects both automatically and lets you switch between them with a provider selector in the UI.
-
-### Setting Up Ollama
-
-Ollama provides unlimited, private LLM inference on your local machine - completely free and runs offline!
-
-**🚀 Quick Setup (No Terminal Required):**
-
-1. **Download Ollama App**
-   - Visit [ollama.com](https://ollama.com) and download the app for your OS
-   - Install and open the Ollama app
-   - It runs in your menu bar (macOS) or system tray (Windows/Linux)
-
-2. **Download a Model**
-   - Open Ollama app and browse available models
-   - Download `qwen2.5:7b` (recommended - best for biomedical research with tool support)
-   - Or choose from: `llama3.1`, `mistral`, `deepseek-r1`
-   - That's it! Bio will automatically detect and use it
-
-3. **Use in Bio**
-   - Start the app in development mode
-   - Ollama status indicator appears in top-right corner
-   - Shows your available models
-   - Click to select which model to use
-   - Icons show capabilities: 🔧 (tools) and 🧠 (reasoning)
-
-**⚡ Advanced Setup (Terminal):**
-
-If you prefer using the terminal:
-
-```bash
-# Install Ollama
-brew install ollama              # macOS
-# OR
-curl -fsSL https://ollama.com/install.sh | sh  # Linux
-
-# Start Ollama service
-ollama serve
-
-# Download recommended models
-ollama pull qwen2.5:7b          # Recommended - excellent tool support
-ollama pull llama3.1:8b         # Alternative - good performance
-ollama pull mistral:7b          # Alternative - fast
-ollama pull deepseek-r1:7b      # For reasoning/thinking mode
-```
-
-**💡 It Just Works:**
-- Bio automatically detects Ollama when it's running
-- No configuration needed
-- Automatically falls back to OpenAI if Ollama is unavailable
-- Switch between models anytime via the local models popup
-
-### Setting Up LM Studio (Alternative)
-
-LM Studio provides a beautiful GUI for running local LLMs - perfect if you prefer visual interfaces over terminal commands!
-
-**🎨 Easy Setup with GUI:**
-
-1. **Download LM Studio**
-   - Visit [lmstudio.ai](https://lmstudio.ai) and download for your OS
-   - Install and open LM Studio
-   - The app provides a full GUI for managing models
-
-2. **Download Models**
-   - Click on the 🔍 Search icon in LM Studio
-   - Browse available models or search for:
-     - `qwen/qwen3-14b` (recommended - excellent tool support)
-     - `openai/gpt-oss-20b` (OpenAI's open source model with reasoning)
-     - `google/gemma-3-12b` (Google's model with good performance)
-     - `qwen/qwen3-4b-thinking-2507` (reasoning model)
-   - Click download and wait for it to complete
-   - Models are cached locally for offline use
-
-3. **Start the Server**
-   - Click the LM Studio logo in your macOS menu bar (top-right corner)
-   - Select **"Start Server on Port 1234..."**
-
-   ![LM Studio Start Server](public/lmstudio-start.png)
-
-   - Server starts immediately - you'll see the status change to "Running"
-   - That's it! Bio will automatically detect it
-
-4. **Important: Configure Context Window**
-   - ⚠️ **CRITICAL**: This app uses extensive tool descriptions that require adequate context length
-   - In LM Studio, when loading a model:
-     - Click on the model settings (gear icon)
-     - Set **Context Length** to **at least 8192 tokens** (16384+ recommended)
-     - If you see errors like "tokens to keep is greater than context length", your context window is too small
-   - Without sufficient context length, you'll get errors when the AI tries to use tools
-   - This applies to all models in LM Studio - configure each model individually
-
-5. **Use in Bio**
-   - Start the app in development mode
-   - Local models indicator appears in top-right corner
-   - If both Ollama and LM Studio are running, you'll see a provider switcher
-   - Click to select which provider and model to use
-   - Icons show capabilities: 🔧 (tools) and 🧠 (reasoning)
-
-**⚙️ Configuration:**
-- Default URL: `http://localhost:1234`
-- Can be customized in `.env.local`:
-  ```env
-  LMSTUDIO_BASE_URL=http://localhost:1234
-  ```
-
-**💡 LM Studio Features:**
-- Real-time GPU/CPU usage monitoring
-- Easy model comparison and testing
-- Visual prompt builder
-- Chat history within LM Studio
-- No terminal commands needed
-
-### Switching Between Providers
-
-If you have both Ollama and LM Studio running, Bio automatically detects both and shows a beautiful provider switcher in the local models popup:
-
-- **Visual Selection**: Click provider buttons with logos
-- **Seamless Switching**: Switch between providers without reloading
-- **Independent Models**: Each provider shows its own model list
-- **Automatic Detection**: No manual configuration needed
-
-The provider switcher appears automatically when multiple providers are detected!
-
-### Model Capabilities
-
-Not all models support all features. Here's what works:
-
-**Tool Calling Support** (Execute Python, search databases, create charts):
-- ✅ qwen2.5, qwen3, deepseek-r1, deepseek-v3
-- ✅ llama3.1, llama3.2, llama3.3
-- ✅ mistral, mistral-nemo, mistral-small
-- ✅ See full list in Ollama popup (wrench icon)
-
-**Thinking/Reasoning Support** (Show reasoning steps):
-- ✅ deepseek-r1, qwen3, magistral
-- ✅ gpt-oss, cogito
-- ✅ See full list in Ollama popup (brain icon)
-
-**What happens if model lacks tool support?**
-- You'll see a friendly dialog explaining limitations
-- Can continue with text-only responses
-- Or switch to a different model that supports tools
-
 ### Development Mode Features
 
 ✅ **Full Chat History**
@@ -352,7 +192,6 @@ Not all models support all features. Here's what works:
 - Full data persistence
 
 ✅ **No Hidden Costs**
-- No OpenAI API usage (when using Ollama)
 - No Supabase database costs
 - No authentication service costs
 
@@ -395,15 +234,6 @@ cp -r .local-data/ .local-data-backup/
 
 **Sidebar won't open on homepage:**
 - Fixed! Sidebar now respects dock setting even on homepage
-
-**Local models not detected:**
-- **Ollama**: Make sure Ollama is running: `ollama serve`
-  - Check Ollama URL in `.env.local` (default: `http://localhost:11434`)
-  - Verify models are installed: `ollama list`
-- **LM Studio**: Click LM Studio menu bar icon → "Start Server on Port 1234..."
-  - Check LM Studio URL in `.env.local` (default: `http://localhost:1234`)
-  - Verify at least one model is downloaded in LM Studio
-  - Server must be running for Bio to detect it
 
 **Database errors:**
 - Delete and recreate: `rm -rf .local-data/`
@@ -648,21 +478,14 @@ Try these powerful queries to see what Bio can do:
 - "Analyze Phase 3 clinical trial data for immunotherapy drugs"
 - "Create a chart comparing efficacy rates of different COVID-19 vaccines"
 
-**With Local Models (Ollama/LM Studio):**
-- Run unlimited queries without API costs
-- Keep all your medical research completely private
-- Perfect for sensitive patient data analysis
-- Choose your preferred interface: terminal (Ollama) or GUI (LM Studio)
-
 ## 🏗️ Architecture
 
 - **Frontend**: Next.js 15 with App Router, Tailwind CSS, shadcn/ui
-- **AI**: OpenAI GPT-5 with function calling + Ollama/LM Studio for local models
+- **AI**: OpenAI GPT-5 with function calling
 - **Data**: Valyu API for comprehensive biomedical data
 - **Code Execution**: Daytona sandboxes for secure Python execution
 - **Visualizations**: Recharts for interactive charts
 - **Real-time**: Streaming responses with Vercel AI SDK
-- **Local Models**: Ollama and LM Studio integration for private, unlimited queries
 
 ## 🔒 Security
 
