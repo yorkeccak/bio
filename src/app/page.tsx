@@ -251,8 +251,7 @@ function HomeContent() {
   return (
     <div className='min-h-screen bg-[#F5F5F5] dark:bg-gray-950 flex'>
       {/* Enterprise Banner */}
-      <EnterpriseBanner />
-
+     
       {/* Notification Toast */}
       <AnimatePresence>
         {notification && (

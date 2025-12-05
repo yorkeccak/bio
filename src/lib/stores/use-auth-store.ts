@@ -110,10 +110,18 @@ export const useAuthStore = create<AuthStore>()(
 
       signOut: async () => {
         const supabase = createClient();
-        
+
         try {
           const result = await supabase.auth.signOut();
-          // Let onAuthStateChange handle the state update
+
+          // Explicitly clear user state (don't rely on onAuthStateChange in dev mode)
+          set({ user: null, loading: false });
+
+          // Clear sessionStorage to prevent stale data on next visit
+          if (typeof window !== 'undefined') {
+            sessionStorage.removeItem('auth-storage');
+          }
+
           return result;
         } catch (error) {
           return { error };

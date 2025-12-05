@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__shadcn-ui__list_blocks",
+      "mcp__shadcn-ui__get_block"
+    ],
+    "deny": [],
+    "ask": []
+  }
+}
