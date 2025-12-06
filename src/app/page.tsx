@@ -4,11 +4,9 @@ import { ChatInterface } from '@/components/chat-interface';
 import { RateLimitDialog } from '@/components/rate-limit-dialog';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import BottomBar from '@/components/bottom-bar';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
 import { createClient } from '@/utils/supabase/client';
-import { Button } from '@/components/ui/button';
 import {
   CheckCircle,
   AlertCircle,
@@ -18,9 +16,9 @@ import { useRateLimit } from '@/lib/hooks/use-rate-limit';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
-import { Sidebar } from '@/components/sidebar';
+import { AppSidebar } from '@/components/app-sidebar';
+import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { SignupPrompt } from '@/components/signup-prompt';
-import { EnterpriseBanner } from '@/components/enterprise/enterprise-banner';
 
 function HomeContent() {
   const { user, loading } = useAuthStore();
@@ -249,9 +247,7 @@ function HomeContent() {
   }
 
   return (
-    <div className='min-h-screen bg-[#F5F5F5] dark:bg-gray-950 flex'>
-      {/* Enterprise Banner */}
-     
+    <SidebarProvider>
       {/* Notification Toast */}
       <AnimatePresence>
         {notification && (
@@ -278,7 +274,7 @@ function HomeContent() {
       </AnimatePresence>
 
       {/* Sidebar */}
-      <Sidebar
+      <AppSidebar
         currentSessionId={currentSessionId}
         onSessionSelect={handleSessionSelect}
         onNewChat={handleNewChat}
@@ -286,7 +282,11 @@ function HomeContent() {
       />
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col pt-0">
+      <SidebarInset className="bg-[#F5F5F5] dark:bg-gray-950">
+        {/* Sidebar Toggle */}
+        <div className="absolute top-4 left-4 z-30">
+          <SidebarTrigger className="h-8 w-8" />
+        </div>
         {/* Header - Animate out when messages appear */}
         <AnimatePresence mode="wait">
             {!hasMessages && (
@@ -407,10 +407,8 @@ function HomeContent() {
             />
           </Suspense>
         </motion.div>
-        
-        <BottomBar />
-      </div>
-      
+      </SidebarInset>
+
       {/* Rate Limit Dialog */}
       <RateLimitDialog
         open={showRateLimitDialog}
@@ -438,7 +436,7 @@ function HomeContent() {
           messageCount={messageCount}
         />
       )}
-    </div>
+    </SidebarProvider>
   );
 }
 

@@ -87,7 +87,6 @@ import {
 import { parseFirstLine } from "@/lib/text-utils";
 import { motion, AnimatePresence } from "framer-motion";
 import DataSourceLogos from "./data-source-logos";
-import SocialLinks from "./social-links";
 import { calculateMessageMetrics, MessageMetrics } from "@/lib/metrics-calculator";
 import { MetricsPills } from "@/components/metrics-pills";
 
@@ -4090,9 +4089,6 @@ export function ChatInterface({
               transition={{ delay: 0.5, duration: 0.3 }}
             >
               <div className="flex flex-col items-center space-y-3">
-                <div className="flex items-center justify-center space-x-4">
-                  <SocialLinks />
-                </div>
                 <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
                   Not financial advice.
                 </p>

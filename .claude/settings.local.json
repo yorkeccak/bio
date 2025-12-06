@@ -12,7 +12,15 @@
       "WebFetch(domain:ai-sdk.dev)",
       "WebFetch(domain:v6.ai-sdk.dev)",
       "Bash(ls:*)",
-      "Bash(npm install)"
+      "Bash(npm install)",
+      "mcp__shadcn-ui__list_components",
+      "mcp__shadcn-ui__get_component",
+      "mcp__shadcn-ui__get_component_demo",
+      "Bash(npx shadcn@latest add:*)",
+      "Bash(npm run build:*)",
+      "Bash(npx tsc:*)",
+      "Bash(curl:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": [],
     "ask": []
