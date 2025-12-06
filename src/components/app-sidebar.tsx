@@ -38,6 +38,7 @@ import {
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -207,7 +208,6 @@ export function AppSidebar({
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight">
                   <span className="truncate font-semibold">Bio</span>
-                  <span className="truncate text-xs text-muted-foreground">by Valyu</span>
                 </div>
               </SidebarMenuButton>
             </SidebarMenuItem>
@@ -324,16 +324,6 @@ export function AppSidebar({
               </SidebarMenuItem>
             )}
 
-            {/* Settings */}
-            {user && (
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setShowSettings(true)}>
-                  <Settings className="h-4 w-4" />
-                  <span>Settings</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-
             <SidebarSeparator className="my-1" />
 
             {/* User Profile or Login */}
@@ -385,6 +375,13 @@ export function AppSidebar({
                         <span className="truncate font-medium">{user.email}</span>
                       </div>
                     </div>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuGroup>
+                      <DropdownMenuItem onClick={() => setShowSettings(true)}>
+                        <Settings className="h-4 w-4 mr-2" />
+                        Settings
+                      </DropdownMenuItem>
+                    </DropdownMenuGroup>
                     <DropdownMenuSeparator />
                     <DropdownMenuItem onClick={handleSignOut} className="text-red-600 dark:text-red-400">
                       <LogOut className="h-4 w-4 mr-2" />

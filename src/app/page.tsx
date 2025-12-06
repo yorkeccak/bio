@@ -4,7 +4,6 @@ import { ChatInterface } from '@/components/chat-interface';
 import { RateLimitDialog } from '@/components/rate-limit-dialog';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
 import { track } from '@vercel/analytics';
 import { createClient } from '@/utils/supabase/client';
 import {
@@ -329,56 +328,7 @@ function HomeContent() {
                 >
                   Bio
                 </motion.h1>
-                
-                {/* "By Valyu" that slides out from under */}
-                <motion.div 
-                  className="absolute -bottom-6 left-0 right-0 flex items-center justify-center gap-1"
-                  initial={{ opacity: 0 }}
-                  animate={{ 
-                    opacity: isHoveringTitle ? 1 : 0,
-                    y: isHoveringTitle ? 0 : -10,
-                  }}
-                  transition={{ 
-                    opacity: { delay: isHoveringTitle ? 0.15 : 0, duration: 0.2 },
-                    y: { delay: isHoveringTitle ? 0.1 : 0, duration: 0.3, ease: [0.23, 1, 0.32, 1] }
-                  }}
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400 font-light">By</span>
-                  <Image 
-                    src="/valyu.svg" 
-                    alt="Valyu" 
-                    width={60}
-                    height={60}
-                    className="h-5 opacity-80 dark:invert"
-                  />
-                </motion.div>
-                
-                {/* Mobile tap hint */}
-                {isMobile && !isHoveringTitle && !hasMessages && (
-                  <motion.div
-                    className="absolute -bottom-8 left-0 right-0 flex items-center justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ delay: 3, duration: 0.5 }}
-                  >
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      Tap to reveal
-                    </span>
-                  </motion.div>
-                )}
-
-                {/* Hover area extender */}
-                <div className="absolute inset-0 -bottom-10" />
               </motion.div>
-              <motion.p
-                className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm max-w-md mx-auto"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
-              >
-                Powered by Valyu&apos;s specialized biomedical data infrastructure for comprehensive research
-              </motion.p>
             </motion.div>
           )}
         </AnimatePresence>

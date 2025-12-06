@@ -2900,32 +2900,7 @@ export function ChatInterface({
                 </div>
               </form>
 
-              {/* Powered by Valyu */}
-              <motion.div
-                className="flex items-center justify-center mt-4"
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                transition={{ delay: 1.1, duration: 0.5 }}
-              >
-                <span className="text-xs text-gray-400 dark:text-gray-500">
-                  Powered by
-                </span>
-                <a
-                  href="https://platform.valyu.ai"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center hover:scale-105 transition-transform"
-                >
-                  <Image
-                    src="/valyu.svg"
-                    alt="Valyu"
-                    width={60}
-                    height={60}
-                    className="h-4 opacity-60 hover:opacity-100 transition-opacity cursor-pointer dark:invert"
-                  />
-                </a>
-              </motion.div>
-            </div>
+                          </div>
           </motion.div>
         )}
 
