@@ -14,7 +14,6 @@ import {
   Trash2,
   CreditCard,
   BarChart3,
-  Building2,
   ChevronsUpDown,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -44,9 +43,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { SettingsModal } from '@/components/user/settings-modal';
-import { SubscriptionModal } from '@/components/user/subscription-modal';
 import { useSubscription } from '@/hooks/use-subscription';
-import { EnterpriseContactModal } from '@/components/enterprise/enterprise-contact-modal';
 
 interface AppSidebarProps {
   currentSessionId?: string;
@@ -78,7 +75,6 @@ export function AppSidebar({
 
   const [showSettings, setShowSettings] = useState(false);
   const [showSubscription, setShowSubscription] = useState(false);
-  const [showEnterpriseModal, setShowEnterpriseModal] = useState(false);
 
   // Fetch chat sessions
   const { data: sessions = [], isLoading: loadingSessions } = useQuery({
@@ -314,16 +310,6 @@ export function AppSidebar({
               </SidebarMenuItem>
             )}
 
-            {/* Enterprise - Only show if enabled */}
-            {user && process.env.NEXT_PUBLIC_APP_MODE !== 'development' && process.env.NEXT_PUBLIC_ENTERPRISE === 'true' && (
-              <SidebarMenuItem>
-                <SidebarMenuButton onClick={() => setShowEnterpriseModal(true)}>
-                  <Building2 className="h-4 w-4" />
-                  <span>Enterprise</span>
-                </SidebarMenuButton>
-              </SidebarMenuItem>
-            )}
-
             <SidebarSeparator className="my-1" />
 
             {/* User Profile or Login */}
@@ -401,16 +387,6 @@ export function AppSidebar({
       <SettingsModal
         open={showSettings}
         onClose={() => setShowSettings(false)}
-      />
-
-      <SubscriptionModal
-        open={showSubscription}
-        onClose={() => setShowSubscription(false)}
-      />
-
-      <EnterpriseContactModal
-        open={showEnterpriseModal}
-        onClose={() => setShowEnterpriseModal(false)}
       />
     </>
   );

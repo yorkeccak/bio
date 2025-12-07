@@ -20,7 +20,14 @@
       "Bash(npm run build:*)",
       "Bash(npx tsc:*)",
       "Bash(curl:*)",
-      "mcp__ide__getDiagnostics"
+      "mcp__ide__getDiagnostics",
+      "Bash(xargs:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(test:*)",
+      "Bash(tree:*)",
+      "WebFetch(domain:ai-elements.anthropic.com)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

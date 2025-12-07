@@ -2,7 +2,6 @@ import { streamText, convertToModelMessages } from "ai";
 import { healthcareTools } from "@/lib/tools";
 import { BiomedUIMessage } from "@/lib/types";
 import { openai, createOpenAI } from "@ai-sdk/openai";
-import { createOllama, ollama } from "ollama-ai-provider-v2";
 import { checkAnonymousRateLimit, incrementRateLimit } from "@/lib/rate-limit";
 import { createClient } from '@supabase/supabase-js';
 import { checkUserRateLimit } from '@/lib/rate-limit';

@@ -55,7 +55,6 @@ import {
   ExternalLink,
   FileText,
   Clipboard,
-  Download,
   Brain,
   Search,
   Globe,
@@ -89,6 +88,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import DataSourceLogos from "./data-source-logos";
 import { calculateMessageMetrics, MessageMetrics } from "@/lib/metrics-calculator";
 import { MetricsPills } from "@/components/metrics-pills";
+import { PromptInput } from "./ai-elements/prompt-input";
 
 // Debug toggles removed per request
 
@@ -1693,9 +1693,6 @@ export function ChatInterface({
   // Auth modal state for paywalls
   const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Signup prompt for non-authenticated users
-  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
-
   // Listen for global auth modal trigger (from sidebar, etc.)
   useEffect(() => {
     const handleShowAuthModal = () => setShowAuthModal(true);
@@ -1854,21 +1851,6 @@ export function ChatInterface({
     onError: (error: Error) => {
       console.error('[Chat Interface] Error:', error);
 
-      // Check if this is a model compatibility error
-      if (error.message.includes('MODEL_COMPATIBILITY_ERROR')) {
-        try {
-          // Parse the error details from the message
-          const errorData = JSON.parse(error.message.replace(/^Error: /, ''));
-          if (errorData.error === 'MODEL_COMPATIBILITY_ERROR') {
-            setModelCompatibilityError({
-              message: errorData.message,
-              compatibilityIssue: errorData.compatibilityIssue
-            });
-          }
-        } catch (e) {
-          console.error('Failed to parse compatibility error:', e);
-        }
-      }
     },
   });
 
@@ -2357,12 +2339,6 @@ export function ChatInterface({
       // Store the input to send
       const queryText = input.trim();
 
-      // Show signup prompt for non-authenticated users on first message
-      if (!user && messages.length === 0 && !skipSignupPrompt) {
-        setShowSignupPrompt(true);
-        return; // Don't send message yet
-      }
-
       // Set submitting flag to prevent URL sync race condition
       setIsSubmitting(true);
 
@@ -2500,72 +2476,6 @@ export function ChatInterface({
     }
   }, []);
 
-  // Track PDF download state
-  const [isDownloadingPDF, setIsDownloadingPDF] = useState(false);
-
-  // Download professional PDF report with charts and citations
-  const handleDownloadPDF = useCallback(async () => {
-    if (!sessionIdRef.current) {
-      return;
-    }
-
-    // Track PDF download
-    track('PDF Download Started', {
-      sessionId: sessionIdRef.current,
-      messageCount: messages.length
-    });
-
-    setIsDownloadingPDF(true);
-
-    try {
-
-      // Call server-side PDF generation API
-      const response = await fetch('/api/reports/generate-pdf', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          sessionId: sessionIdRef.current,
-        }),
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error || 'Failed to generate PDF');
-      }
-
-      // Get PDF blob
-      const blob = await response.blob();
-
-      // Create download link
-      const url = window.URL.createObjectURL(blob);
-      const link = document.createElement('a');
-      link.href = url;
-
-      // Get filename from response header or use default
-      const contentDisposition = response.headers.get('Content-Disposition');
-      const filenameMatch = contentDisposition?.match(/filename="(.+)"/);
-      const filename = filenameMatch ? filenameMatch[1] : `report-${Date.now()}.pdf`;
-
-      link.download = filename;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      window.URL.revokeObjectURL(url);
-
-
-      track('PDF Downloaded', {
-        sessionId: sessionIdRef.current,
-        messageCount: messages.length,
-      });
-    } catch (err) {
-      alert('Failed to generate PDF. Please try again.');
-    } finally {
-      setIsDownloadingPDF(false);
-    }
-  }, [messages]);
-
   const updateUrlWithQuery = (query: string) => {
     if (query.trim()) {
       const url = new URL(window.location.href);
@@ -2576,11 +2486,6 @@ export function ChatInterface({
       }
       window.history.replaceState({}, "", url.toString());
     }
-  };
-
-  const setInputAndUpdateUrl = (query: string) => {
-    setInput(query);
-    updateUrlWithQuery(query);
   };
 
   const handlePromptClick = (query: string) => {
@@ -2612,8 +2517,6 @@ export function ChatInterface({
 
   const isLoading = status === "submitted" || status === "streaming";
   const canStop = status === "submitted" || status === "streaming";
-  const canRegenerate =
-    (status === "ready" || status === "error") && messages.length > 0;
 
   // Calculate cumulative metrics from all assistant messages
   const cumulativeMetrics = useMemo(() => {
@@ -2850,7 +2753,7 @@ export function ChatInterface({
                   <MetricsPills metrics={cumulativeMetrics} />
                 </div>
               )}
-
+              <PromptInput onSubmit={handleSubmit}></PromptInput>
               <form onSubmit={handleSubmit} className="max-w-3xl mx-auto">
                 <div className="relative flex items-end">
                   <Textarea
@@ -3825,43 +3728,6 @@ export function ChatInterface({
                         <Copy className="h-3.5 w-3.5" />
                         <span>Copy</span>
                       </button>
-
-                      {/* Show download button only for last message when session exists */}
-                      {deferredMessages[deferredMessages.length - 1]?.id === message.id &&
-                       sessionIdRef.current && (
-                        subscription.canDownloadReports ? (
-                          <button
-                            onClick={handleDownloadPDF}
-                            disabled={isDownloadingPDF}
-                            className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-gray-900 dark:text-gray-100 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                            title="Download full report as PDF"
-                          >
-                            {isDownloadingPDF ? (
-                              <>
-                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                <span>Generating...</span>
-                              </>
-                            ) : (
-                              <>
-                                <Download className="h-3.5 w-3.5" />
-                                <span>Download Report</span>
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <button
-                            onClick={() => setShowAuthModal(true)}
-                            className="inline-flex items-center gap-2 px-4 py-1.5 text-xs font-semibold text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-gray-800/50 border border-gray-200 dark:border-gray-700 rounded-lg transition-all hover:border-gray-300 dark:hover:border-gray-600 hover:text-gray-600 dark:hover:text-gray-400 group"
-                            title="Sign in to download reports"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                            <span>Download Report</span>
-                            <span className="ml-1 px-1.5 py-0.5 text-[10px] bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded group-hover:bg-blue-200 dark:group-hover:bg-blue-900/50 transition-colors">
-                              Sign in
-                            </span>
-                          </button>
-                        )
-                      )}
                     </div>
                   )}
                 </div>
@@ -4056,19 +3922,6 @@ export function ChatInterface({
                 </div>
               </form>
 
-            {/* Mobile Bottom Bar - Social links and disclaimer below input */}
-            <motion.div 
-              className="block sm:hidden mt-4 pt-3 border-t border-gray-200 dark:border-gray-700"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.3 }}
-            >
-              <div className="flex flex-col items-center space-y-3">
-                <p className="text-[10px] text-gray-400 dark:text-gray-500 text-center">
-                  Not financial advice.
-                </p>
-              </div>
-            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
@@ -4082,40 +3935,6 @@ export function ChatInterface({
         onClose={() => setShowAuthModal(false)}
       />
 
-      {/* Signup Prompt Dialog for non-authenticated users */}
-      <Dialog open={showSignupPrompt} onOpenChange={setShowSignupPrompt}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Sign up to save your chat
-            </DialogTitle>
-            <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Create a free account to save your chat history and access it anytime.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-6">
-            <button
-              onClick={() => {
-                setShowSignupPrompt(false);
-                setShowAuthModal(true);
-              }}
-              className="w-full px-4 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all"
-            >
-              Sign up (free)
-            </button>
-            <button
-              onClick={(e) => {
-                setShowSignupPrompt(false);
-                // Submit with skip flag to bypass the signup prompt
-                handleSubmit(e as any, true);
-              }}
-              className="w-full px-4 py-2.5 bg-transparent border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-            >
-              Continue without account
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
