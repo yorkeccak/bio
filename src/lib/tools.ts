@@ -643,6 +643,7 @@ ${execution.result || '(No output produced)'}
           maxNumResults: maxResults || 10,
           searchType: "proprietary",
           includedSources: ["valyu/valyu-pubmed", "valyu/valyu-arxiv", "valyu/valyu-medrxiv", "valyu/valyu-biorxiv"],
+          isToolCall: true,
         });
 
         await track("Valyu API Call", {
