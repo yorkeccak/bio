@@ -9,7 +9,9 @@ import { createClient } from '@/utils/supabase/client';
 import {
   CheckCircle,
   AlertCircle,
+  Share,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { useQueryClient } from '@tanstack/react-query';
 import { useRateLimit } from '@/lib/hooks/use-rate-limit';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -182,6 +184,19 @@ function HomeContent() {
     }
   }, [isMobile]);
 
+  const handleShare = useCallback(async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'Bio',
+          url: window.location.href,
+        });
+      } catch {
+        // User cancelled or share failed - silently ignore
+      }
+    }
+  }, []);
+
   
   // Auto-trigger tilt animation after 2 seconds
   useEffect(() => {
@@ -282,10 +297,13 @@ function HomeContent() {
 
       {/* Main Content Area */}
       <SidebarInset className="bg-[#F5F5F5] dark:bg-gray-950">
-        {/* Sidebar Toggle */}
-        <div className="absolute top-4 left-4 z-30">
+        {/* Fixed Header */}
+        <header className="sticky top-0 h-14 bg-[#F5F5F5] dark:bg-gray-950 border-b border-gray-200 dark:border-gray-800 z-40 flex items-center justify-between px-4">
           <SidebarTrigger className="h-8 w-8" />
-        </div>
+          <Button variant="ghost" size="icon-sm" onClick={handleShare}>
+            <Share className="h-4 w-4" />
+          </Button>
+        </header>
         {/* Header - Animate out when messages appear */}
         <AnimatePresence mode="wait">
             {!hasMessages && (
