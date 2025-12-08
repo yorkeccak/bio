@@ -1,6 +1,6 @@
 'use client';
 
-import { ChatInterface } from '@/components/chat-interface';
+import { ChatInterface } from '@/components/chat';
 import { RateLimitDialog } from '@/components/rate-limit-dialog';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
