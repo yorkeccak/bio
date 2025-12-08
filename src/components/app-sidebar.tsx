@@ -7,7 +7,6 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { createClient } from '@/utils/supabase/client-wrapper';
 import {
-  MessageSquare,
   MessageCirclePlus,
   Settings,
   LogOut,
@@ -17,7 +16,6 @@ import {
   ChevronsUpDown,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
 import {
   Sidebar,
   SidebarContent,
@@ -210,7 +208,7 @@ export function AppSidebar({
           </SidebarMenu>
         </SidebarHeader>
 
-        <SidebarContent>
+        <SidebarContent className="overflow-hidden">
           {/* New Chat Action */}
           <SidebarGroup>
             <SidebarGroupContent>
@@ -260,15 +258,13 @@ export function AppSidebar({
                   </p>
                 </div>
               ) : (
-                <ScrollArea className="h-[calc(100vh-320px)]">
-                  <SidebarMenu>
+                <SidebarMenu>
                     {sessions.map((session: ChatSession) => (
                       <SidebarMenuItem key={session.id}>
                         <SidebarMenuButton
                           onClick={() => handleSessionSelect(session.id)}
                           isActive={currentSessionId === session.id}
                         >
-                          <MessageSquare className="h-4 w-4" />
                           <span>{session.title}</span>
                         </SidebarMenuButton>
                         <SidebarMenuAction
@@ -284,7 +280,6 @@ export function AppSidebar({
                       </SidebarMenuItem>
                     ))}
                   </SidebarMenu>
-                </ScrollArea>
               )}
             </SidebarGroupContent>
           </SidebarGroup>
