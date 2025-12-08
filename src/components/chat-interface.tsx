@@ -66,11 +66,7 @@ import {
   BarChart3,
   Check,
 } from "lucide-react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import "katex/dist/katex.min.css";
-import katex from "katex";
+import { Streamdown } from "streamdown";
 import { BiomedicalChart } from "@/components/financial-chart";
 import { CSVPreview } from "@/components/csv-preview";
 import { CitationTextRenderer } from "@/components/citation-text-renderer";
@@ -199,9 +195,9 @@ const TimelineStep = memo(({
         <div className="mt-1.5 ml-6 mr-2 animate-in fade-in duration-150">
           {children || (
             <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 bg-gray-50/50 dark:bg-white/[0.02] rounded-lg px-3 py-2.5 border-l-2 border-gray-200 dark:border-gray-800">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
+              <Streamdown mode="static">
                 {part.text || ''}
-              </ReactMarkdown>
+              </Streamdown>
             </div>
           )}
         </div>
@@ -496,31 +492,7 @@ const markdownComponents = {
     }
     return <iframe src={src} {...props} />;
   },
-  math: ({ children }: any) => {
-    // Render math content using KaTeX
-    const mathContent =
-      typeof children === "string" ? children : children?.toString() || "";
-
-    try {
-      const html = katex.renderToString(mathContent, {
-        displayMode: false,
-        throwOnError: false,
-        strict: false,
-      });
-      return (
-        <span
-          dangerouslySetInnerHTML={{ __html: html }}
-          className="katex-math"
-        />
-      );
-    } catch (error) {
-      return (
-        <code className="math-fallback bg-gray-100 px-1 rounded">
-          {mathContent}
-        </code>
-      );
-    }
-  },
+  // Math is handled automatically by Streamdown's built-in KaTeX support
   // Handle academic XML tags commonly found in Wiley content
   note: ({ children }: any) => (
     <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 pl-4 py-2 my-2 text-sm">
@@ -702,8 +674,6 @@ const MemoizedMarkdown = memo(function MemoizedMarkdown({
 }: {
   text: string;
 }) {
-  const enableRawHtml = (text?.length || 0) < 20000;
-
   // Parse special references (CSV/charts) - MUST be before any conditional returns
   const specialSegments = useMemo(() => parseSpecialReferences(text), [text]);
   const hasSpecialRefs = specialSegments.some(s => s.type === 'csv' || s.type === 'chart');
@@ -731,16 +701,12 @@ const MemoizedMarkdown = memo(function MemoizedMarkdown({
           // Render text segment as markdown
           const segmentProcessed = preprocessMarkdownText(cleanBiomedicalText(segment.content));
           return (
-            <ReactMarkdown
+            <Streamdown
               key={idx}
-              remarkPlugins={[remarkGfm]}
               components={markdownComponents as any}
-              rehypePlugins={enableRawHtml ? [rehypeRaw] : []}
-              skipHtml={!enableRawHtml}
-              unwrapDisallowed={true}
             >
               {segmentProcessed}
-            </ReactMarkdown>
+            </Streamdown>
           );
         })}
       </>
@@ -748,15 +714,11 @@ const MemoizedMarkdown = memo(function MemoizedMarkdown({
   }
 
   return (
-    <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
+    <Streamdown
       components={markdownComponents as any}
-      rehypePlugins={enableRawHtml ? [rehypeRaw] : []}
-      skipHtml={!enableRawHtml}
-      unwrapDisallowed={true}
     >
       {processed}
-    </ReactMarkdown>
+    </Streamdown>
   );
 }, (prevProps, nextProps) => {
   // PERFORMANCE FIX: Only re-render if text actually changes

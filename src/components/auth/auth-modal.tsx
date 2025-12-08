@@ -8,7 +8,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { motion, AnimatePresence } from 'framer-motion';
+import { Button } from '@/components/ui/button';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
 
@@ -79,82 +79,63 @@ export function AuthModal({ open, onClose, onSignUpSuccess }: AuthModalProps) {
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="max-w-xs border-0 shadow-2xl bg-white dark:bg-gray-950 p-8">
-        <DialogHeader className="text-center pb-6">
-          <DialogTitle className="text-xl font-normal text-gray-900 dark:text-gray-100">
-            Bio.
-          </DialogTitle>
+      <DialogContent className="sm:max-w-[450px]">
+        <DialogHeader>
+          <DialogTitle className="text-center text-xl">Sign in with Valyu</DialogTitle>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Sign in with Valyu Button */}
-          <motion.button
-            whileTap={{ scale: 0.98 }}
-            onClick={handleValyuSignIn}
-            disabled={isLoading}
-            className="w-full p-4 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-lg hover:bg-gray-800 dark:hover:bg-gray-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            <AnimatePresence mode="wait">
-              {isLoading ? (
-                <motion.div
-                  key="loading"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center justify-center gap-3"
-                >
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    className="w-5 h-5 border-2 border-white dark:border-gray-900 border-t-transparent rounded-full"
-                  />
-                  <span className="text-sm font-medium">Connecting...</span>
-                </motion.div>
-              ) : (
-                <motion.div
-                  key="normal"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  exit={{ opacity: 0 }}
-                  className="flex items-center justify-center gap-3"
-                >
-                  <span className="text-sm font-medium">Sign in with</span>
-                  <Image
-                    src="/valyu.svg"
-                    alt="Valyu"
-                    width={60}
-                    height={20}
-                    className="dark:invert"
-                  />
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.button>
+        <div className="space-y-5 py-4">
+          <p className="text-center text-sm text-muted-foreground leading-relaxed">
+            Valyu is the information backbone of Bio, giving our AI engine access to real-time biomedical data across web, academic, and proprietary sources.
+          </p>
 
-          {/* Info text */}
-          <div className="text-center space-y-1">
-            <p className="text-sm text-gray-600 dark:text-gray-300">
-              <span className="font-semibold text-emerald-600 dark:text-emerald-400">$10 free credits</span> on signup
-            </p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              Valyu is the search engine powering this app
+          {/* Free Credits Badge */}
+          <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-4">
+            <div className="flex items-center justify-center gap-2 mb-1">
+              <span className="text-xl">🎁</span>
+              <span className="text-green-600 dark:text-green-400 font-bold">$10 Free Credits</span>
+            </div>
+            <p className="text-center text-xs text-muted-foreground">
+              New accounts get $10 in free search credits
             </p>
           </div>
 
-          {/* Error Display */}
-          <AnimatePresence>
-            {error && (
-              <motion.div
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                className="text-center text-sm text-red-500 dark:text-red-400"
-              >
-                {error}
-              </motion.div>
-            )}
-          </AnimatePresence>
+          {error && (
+            <div className="bg-red-500/10 border border-red-500/20 rounded-lg p-3 text-center">
+              <p className="text-sm text-red-600 dark:text-red-400">{error}</p>
+            </div>
+          )}
 
+          <Button
+            onClick={handleValyuSignIn}
+            disabled={isLoading}
+            className="w-full h-12 bg-black hover:bg-gray-800 text-white font-medium"
+          >
+            {isLoading ? (
+              <span className="flex items-center gap-2">
+                <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Connecting...
+              </span>
+            ) : (
+              <span className="flex items-center justify-center gap-3">
+                <span>Sign in with</span>
+                <Image
+                  src="/valyu.svg"
+                  alt="Valyu"
+                  width={60}
+                  height={20}
+                  className="h-5 w-auto invert"
+                />
+              </span>
+            )}
+          </Button>
+
+          <p className="text-center text-xs text-muted-foreground">
+            Don&apos;t have an account? You can create one during sign-in.
+          </p>
         </div>
       </DialogContent>
     </Dialog>

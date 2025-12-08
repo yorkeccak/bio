@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, memo } from 'react';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { Streamdown } from 'streamdown';
 import { csvToMarkdownTable, formatCsvForMarkdown, CSVData } from '@/lib/csv-utils';
 
 // Cache for CSV data to prevent re-fetching during streaming
@@ -93,9 +92,9 @@ const CsvRendererComponent = ({ csvId, alt }: { csvId: string; alt?: string }) =
 
   return (
     <div className="my-4 w-full overflow-x-auto scrollbar-hide">
-      <ReactMarkdown remarkPlugins={[remarkGfm]}>
+      <Streamdown mode="static">
         {markdownTable}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
 };

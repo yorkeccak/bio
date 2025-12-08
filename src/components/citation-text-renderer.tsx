@@ -1,10 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import rehypeRaw from "rehype-raw";
-import katex from "katex";
+import { Streamdown } from "streamdown";
 import {
   InlineCitation,
   InlineCitationText,
@@ -28,6 +25,7 @@ interface CitationTextRendererProps {
   text: string;
   citations: CitationMap;
   className?: string;
+  isStreaming?: boolean;
 }
 
 // Cache for chart data to prevent re-fetching during streaming
@@ -105,20 +103,18 @@ const InlineChartRenderer = React.memo(({ chartId, alt }: { chartId: string; alt
 
 InlineChartRenderer.displayName = 'InlineChartRenderer';
 
-// CSV rendering now handled by shared CsvRenderer component
-
 // Component to render grouped citations with hover card
-const GroupedCitationBadge = React.memo(({ 
-  citationKeys, 
-  citations 
-}: { 
-  citationKeys: string[]; 
+const GroupedCitationBadge = React.memo(({
+  citationKeys,
+  citations
+}: {
+  citationKeys: string[];
   citations: CitationMap;
 }) => {
   // Collect all citations from all keys
   const allCitations: any[] = [];
   const allSources: string[] = [];
-  
+
   citationKeys.forEach(key => {
     const citationList = citations[key] || [];
     citationList.forEach(citation => {
@@ -128,7 +124,7 @@ const GroupedCitationBadge = React.memo(({
       }
     });
   });
-  
+
   if (allCitations.length === 0) {
     // If no citations found, just show the keys without hover
     return <span className="text-blue-600 dark:text-blue-400">{citationKeys.join('')}</span>;
@@ -194,7 +190,7 @@ const parseGroupedCitations = (text: string): { segments: Array<{ type: 'text' |
     // Parse the citation group
     const citationGroup = match[0];
     const citations: string[] = [];
-    
+
     if (citationGroup.includes(',')) {
       // Handle [1,2,3] format
       const numbers = citationGroup.match(/\d+/g) || [];
@@ -233,7 +229,7 @@ const createMarkdownComponents = (citations: CitationMap) => ({
     const processedChildren = React.Children.map(children, (child) => {
       if (typeof child === 'string') {
         const { segments } = parseGroupedCitations(child);
-        
+
         if (segments.some(s => s.type === 'citation-group')) {
           return segments.map((segment, idx) => {
             if (segment.type === 'citation-group' && segment.citations) {
@@ -248,13 +244,13 @@ const createMarkdownComponents = (citations: CitationMap) => ({
 
     return <p {...props}>{processedChildren}</p>;
   },
-  
+
   // Handle other text containers similarly
   li: ({ children, ...props }: any) => {
     const processedChildren = React.Children.map(children, (child) => {
       if (typeof child === 'string') {
         const { segments } = parseGroupedCitations(child);
-        
+
         if (segments.some(s => s.type === 'citation-group')) {
           return segments.map((segment, idx) => {
             if (segment.type === 'citation-group' && segment.citations) {
@@ -269,28 +265,10 @@ const createMarkdownComponents = (citations: CitationMap) => ({
 
     return <li {...props}>{processedChildren}</li>;
   },
-  
-  // Handle math rendering
-  math: ({ children }: any) => {
-    const mathContent = typeof children === "string" ? children : children?.toString() || "";
-    try {
-      const html = katex.renderToString(mathContent, {
-        displayMode: false,
-        throwOnError: false,
-        strict: false,
-      });
-      return <span dangerouslySetInnerHTML={{ __html: html }} className="katex-math" />;
-    } catch (error) {
-      return <code className="math-fallback bg-gray-100 px-1 rounded">{mathContent}</code>;
-    }
-  },
-  
+
   // Handle images and special references (charts and CSVs)
-  // Note: We can't return block-level elements (div) from img handler as ReactMarkdown wraps them in <p>
-  // CSVs and charts are handled via preprocessing instead
   img: ({ src, alt, ...props }: any) => {
     if (!src || src.trim() === "") return null;
-
 
     try {
       new URL(src);
@@ -393,12 +371,9 @@ const parseSpecialReferences = (text: string): Array<{ type: 'text' | 'csv' | 'c
 export const CitationTextRenderer = React.memo(({
   text,
   citations,
-  className = ""
+  className = "",
+  isStreaming = false
 }: CitationTextRendererProps) => {
-  // CRITICAL: Only enable HTML processing for short text (< 20K chars)
-  // This prevents massive performance issues with large responses
-  const enableRawHtml = (text?.length || 0) < 20000;
-
   // ALL HOOKS MUST BE BEFORE ANY CONDITIONAL RETURNS
   const processedText = React.useMemo(
     () => preprocessMarkdownText(cleanBiomedicalText(text || "")),
@@ -437,16 +412,13 @@ export const CitationTextRenderer = React.memo(({
           }
           // Render text segment as markdown
           return (
-            <ReactMarkdown
+            <Streamdown
               key={idx}
-              remarkPlugins={[remarkGfm]}
-              rehypePlugins={enableRawHtml ? [rehypeRaw] : []}
-              skipHtml={!enableRawHtml}
+              isAnimating={isStreaming}
               components={markdownComponents as any}
-              unwrapDisallowed={true}
             >
               {preprocessMarkdownText(cleanBiomedicalText(segment.content))}
-            </ReactMarkdown>
+            </Streamdown>
           );
         })}
       </div>
@@ -470,15 +442,12 @@ export const CitationTextRenderer = React.memo(({
 
   return (
     <div className={className}>
-      <ReactMarkdown
-        remarkPlugins={[remarkGfm]}
-        rehypePlugins={enableRawHtml ? [rehypeRaw] : []}
-        skipHtml={!enableRawHtml}
+      <Streamdown
+        isAnimating={isStreaming}
         components={markdownComponents as any}
-        unwrapDisallowed={true}
       >
         {processedText}
-      </ReactMarkdown>
+      </Streamdown>
     </div>
   );
 }, (prevProps, nextProps) => {
@@ -486,7 +455,8 @@ export const CitationTextRenderer = React.memo(({
   return (
     prevProps.text === nextProps.text &&
     Object.keys(prevProps.citations).length === Object.keys(nextProps.citations).length &&
-    prevProps.className === nextProps.className
+    prevProps.className === nextProps.className &&
+    prevProps.isStreaming === nextProps.isStreaming
   );
 });
 

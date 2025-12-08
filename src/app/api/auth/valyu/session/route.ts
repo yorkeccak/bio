@@ -1,191 +1,237 @@
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
 /**
- * Create a local Supabase session from Valyu OAuth tokens
- * This endpoint:
- * 1. Fetches user info from Valyu Platform
- * 2. Creates or updates user in app's Supabase (user_metadata only, no valyu columns in users table)
- * 3. Generates a magic link token for local session
+ * Valyu OAuth Session Creation
+ *
+ * After OAuth token exchange, this endpoint:
+ * 1. Fetches user info from Valyu using the access token
+ * 2. Creates or finds the user in Bio's Supabase
+ * 3. Creates a session for that user
+ * 4. Returns session tokens that can be used with Supabase client
  */
-export async function POST(request: Request) {
+
+const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL || '';
+const SUPABASE_SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY || '';
+// Support both VALYU_APP_URL (server) and NEXT_PUBLIC_VALYU_APP_URL (client)
+const VALYU_APP_URL = process.env.VALYU_APP_URL || process.env.NEXT_PUBLIC_VALYU_APP_URL || 'https://platform.valyu.ai';
+
+export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { access_token, id_token } = body;
+    const { valyu_access_token, access_token } = body;
 
-    if (!access_token) {
+    // Support both parameter names
+    const token = valyu_access_token || access_token;
+
+    if (!token) {
       return NextResponse.json(
-        { error: 'invalid_request', message: 'Missing access_token' },
+        { error: 'missing_token', error_description: 'valyu_access_token is required' },
         { status: 400 }
       );
     }
 
-    // Get user info from Valyu Platform
-    const valyuAppUrl = process.env.VALYU_APP_URL || 'https://platform.valyu.ai';
-    const userInfoUrl = `${valyuAppUrl}/api/oauth/userinfo`;
-
-    console.log('[Session] Fetching user info from Valyu Platform');
-
-    const userInfoResponse = await fetch(userInfoUrl, {
-      headers: {
-        'Authorization': `Bearer ${access_token}`,
-      },
-    });
-
-    if (!userInfoResponse.ok) {
-      console.error('[Session] Failed to get user info:', userInfoResponse.status);
+    if (!SUPABASE_URL || !SUPABASE_SERVICE_ROLE_KEY) {
+      console.error('[Valyu Session] Missing Supabase configuration');
       return NextResponse.json(
-        { error: 'userinfo_failed', message: 'Failed to get user information' },
-        { status: 401 }
-      );
-    }
-
-    const userInfo = await userInfoResponse.json();
-    console.log('[Session] Got user info:', {
-      sub: userInfo.sub,
-      email: userInfo.email,
-      name: userInfo.name,
-    });
-
-    // Create Supabase admin client for app's database
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-    if (!supabaseUrl || !supabaseServiceKey) {
-      console.error('[Session] Missing Supabase configuration');
-      return NextResponse.json(
-        { error: 'server_error', message: 'Database not configured' },
+        { error: 'server_error', error_description: 'Supabase not configured' },
         { status: 500 }
       );
     }
 
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    // 1. Fetch user info from Valyu
+    const userinfoUrl = `${VALYU_APP_URL}/api/oauth/userinfo`;
+    console.log('[Valyu Session] Fetching userinfo from:', userinfoUrl);
+
+    const userInfoResponse = await fetch(userinfoUrl, {
+      headers: {
+        'Authorization': `Bearer ${token}`,
+      },
+    });
+
+    if (!userInfoResponse.ok) {
+      const errorText = await userInfoResponse.text();
+      console.error('[Valyu Session] Failed to fetch user info:', userInfoResponse.status, errorText.substring(0, 200));
+      return NextResponse.json(
+        { error: 'userinfo_failed', error_description: 'Failed to fetch user info from Valyu' },
+        { status: 401 }
+      );
+    }
+
+    const valyuUser = await userInfoResponse.json();
+    console.log('[Valyu Session] Got user info:', {
+      sub: valyuUser.sub,
+      email: valyuUser.email,
+      name: valyuUser.name
+    });
+
+    if (!valyuUser.email) {
+      return NextResponse.json(
+        { error: 'missing_email', error_description: 'Valyu user does not have an email' },
+        { status: 400 }
+      );
+    }
+
+    // 2. Create admin Supabase client
+    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
       auth: {
         autoRefreshToken: false,
         persistSession: false,
       },
     });
 
-    // Check if auth user exists
-    const { data: existingUsers } = await supabase.auth.admin.listUsers();
-    const existingUser = existingUsers?.users?.find(u => u.email === userInfo.email);
-
+    // 3. Try to create user first, handle email_exists by looking up existing user
     let userId: string;
 
-    if (existingUser) {
-      // User exists - update metadata
-      userId = existingUser.id;
-      console.log('[Session] Found existing user:', userId);
+    const { data: newUser, error: createError } = await supabaseAdmin.auth.admin.createUser({
+      email: valyuUser.email,
+      email_confirm: true, // Auto-confirm since Valyu already verified
+      user_metadata: {
+        valyu_sub: valyuUser.sub,
+        full_name: valyuUser.name || valyuUser.given_name,
+        avatar_url: valyuUser.picture,
+        valyu_user_type: valyuUser.valyu_user_type,
+        valyu_organisation_id: valyuUser.valyu_organisation_id,
+        valyu_organisation_name: valyuUser.valyu_organisation_name,
+      },
+    });
 
-      // Update user_metadata with Valyu info (not the users table)
-      await supabase.auth.admin.updateUserById(userId, {
-        user_metadata: {
-          valyu_sub: userInfo.sub,
-          full_name: userInfo.name || userInfo.given_name,
-          avatar_url: userInfo.picture,
-          valyu_user_type: userInfo.valyu_user_type,
-          valyu_organisation_id: userInfo.valyu_organisation_id,
-          valyu_organisation_name: userInfo.valyu_organisation_name,
-        },
-      });
+    if (createError) {
+      // Check if user already exists
+      if (createError.code === 'email_exists') {
+        console.log('[Valyu Session] User exists, looking up by email...');
 
-      // Update users table with basic info only (no valyu-specific columns)
-      await supabase
-        .from('users')
-        .upsert({
-          id: userId,
-          email: userInfo.email,
-          full_name: userInfo.name || userInfo.given_name,
-          avatar_url: userInfo.picture,
-          subscription_tier: 'valyu',
-          subscription_status: 'active',
-          updated_at: new Date().toISOString(),
-        }, {
-          onConflict: 'id',
+        // Find existing user by paginating through all users
+        // This is inefficient but Supabase Admin API doesn't have getUserByEmail
+        let page = 1;
+        let foundUser = null;
+
+        while (!foundUser) {
+          const { data: usersPage, error: listError } = await supabaseAdmin.auth.admin.listUsers({
+            page,
+            perPage: 1000,
+          });
+
+          if (listError || !usersPage?.users?.length) {
+            break;
+          }
+
+          foundUser = usersPage.users.find(u => u.email === valyuUser.email);
+          page++;
+
+          // Safety limit
+          if (page > 10) break;
+        }
+
+        if (!foundUser) {
+          console.error('[Valyu Session] User exists but could not find them');
+          return NextResponse.json(
+            { error: 'user_lookup_failed', error_description: 'User exists but could not be found' },
+            { status: 500 }
+          );
+        }
+
+        userId = foundUser.id;
+        console.log('[Valyu Session] Found existing user:', userId);
+
+        // Update user metadata with latest Valyu info
+        await supabaseAdmin.auth.admin.updateUserById(userId, {
+          user_metadata: {
+            valyu_sub: valyuUser.sub,
+            full_name: valyuUser.name || valyuUser.given_name,
+            avatar_url: valyuUser.picture,
+            valyu_user_type: valyuUser.valyu_user_type,
+            valyu_organisation_id: valyuUser.valyu_organisation_id,
+            valyu_organisation_name: valyuUser.valyu_organisation_name,
+          },
         });
-    } else {
-      // Create new user
-      const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-        email: userInfo.email,
-        email_confirm: true, // Mark as verified since Valyu verified it
-        user_metadata: {
-          valyu_sub: userInfo.sub,
-          full_name: userInfo.name || userInfo.given_name,
-          avatar_url: userInfo.picture,
-          valyu_user_type: userInfo.valyu_user_type,
-          valyu_organisation_id: userInfo.valyu_organisation_id,
-          valyu_organisation_name: userInfo.valyu_organisation_name,
-        },
-      });
 
-      if (authError) {
-        console.error('[Session] Failed to create auth user:', authError);
+        // Update basic info in users table
+        const { error: upsertError } = await supabaseAdmin
+          .from('users')
+          .upsert({
+            id: userId,
+            email: valyuUser.email,
+            full_name: valyuUser.name || valyuUser.given_name,
+            avatar_url: valyuUser.picture,
+            subscription_tier: 'valyu',
+            subscription_status: 'active',
+            updated_at: new Date().toISOString(),
+          }, {
+            onConflict: 'id',
+          });
+
+        if (upsertError) {
+          console.error('[Valyu Session] Failed to upsert user profile:', upsertError);
+        } else {
+          console.log('[Valyu Session] Updated user profile');
+        }
+      } else {
+        // Some other error
+        console.error('[Valyu Session] Failed to create user:', createError);
         return NextResponse.json(
-          { error: 'user_creation_failed', message: 'Failed to create user' },
+          { error: 'create_user_failed', error_description: createError.message },
           { status: 500 }
         );
       }
+    } else {
+      // New user created successfully
+      userId = newUser.user.id;
+      console.log('[Valyu Session] Created new user:', userId);
 
-      userId = authUser.user.id;
-      console.log('[Session] Created new user:', userId);
-
-      // Create user profile in users table with basic info only
-      const { error: profileError } = await supabase
+      // Create user profile in users table
+      const { error: insertError } = await supabaseAdmin
         .from('users')
         .insert({
           id: userId,
-          email: userInfo.email,
-          full_name: userInfo.name || userInfo.given_name,
-          avatar_url: userInfo.picture,
+          email: valyuUser.email,
+          full_name: valyuUser.name || valyuUser.given_name,
+          avatar_url: valyuUser.picture,
           subscription_tier: 'valyu',
           subscription_status: 'active',
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         });
 
-      if (profileError) {
-        console.error('[Session] Failed to create user profile:', profileError);
-        // Continue anyway - user can still sign in
+      if (insertError) {
+        console.error('[Valyu Session] Failed to create user profile:', insertError);
       }
     }
 
-    // Generate magic link for local session
-    console.log('[Session] Generating magic link for user:', userId);
-
-    const { data: linkData, error: linkError } = await supabase.auth.admin.generateLink({
+    // 4. Generate a magic link to create a session
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'magiclink',
-      email: userInfo.email,
-      options: {
-        redirectTo: `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/`,
-      },
+      email: valyuUser.email,
     });
 
-    if (linkError || !linkData?.properties?.hashed_token) {
-      console.error('[Session] Failed to generate magic link:', linkError);
+    if (linkError) {
+      console.error('[Valyu Session] Failed to generate link:', linkError);
       return NextResponse.json(
-        { error: 'session_creation_failed', message: 'Failed to create session' },
+        { error: 'session_failed', error_description: linkError.message },
         { status: 500 }
       );
     }
 
-    // Return the magic link token and user info
-    // Valyu info is in user_metadata, accessible via session.user.user_metadata
+    // Return the verification details so client can complete sign-in
+    // Valyu info is stored in user_metadata, accessible via session.user.user_metadata
     return NextResponse.json({
-      success: true,
-      is_new_user: !existingUser,
+      user_id: userId,
+      email: valyuUser.email,
+      token_hash: linkData.properties.hashed_token,
       user: {
         id: userId,
-        email: userInfo.email,
-        valyu_sub: userInfo.sub,
-        valyu_organisation_name: userInfo.organisation_name,
+        email: valyuUser.email,
+        name: valyuUser.name,
+        avatar_url: valyuUser.picture,
+        valyu_sub: valyuUser.sub,
+        valyu_organisation_id: valyuUser.valyu_organisation_id,
+        valyu_organisation_name: valyuUser.valyu_organisation_name,
       },
-      magic_link_token: linkData.properties.hashed_token,
-      magic_link_url: linkData.properties.action_link,
     });
   } catch (error) {
-    console.error('[Session] Error:', error);
+    console.error('[Valyu Session] Unexpected error:', error);
     return NextResponse.json(
-      { error: 'server_error', message: 'Internal server error' },
+      { error: 'server_error', error_description: 'An unexpected error occurred' },
       { status: 500 }
     );
   }

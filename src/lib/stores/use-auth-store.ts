@@ -141,13 +141,29 @@ export const useAuthStore = create<AuthStore>()(
           });
 
           // Use magic link to create local Supabase session
-          if (sessionData.magic_link_url) {
-            // Extract token from magic link and verify it
+          // Support both old format (magic_link_url/magic_link_token) and new format (token_hash)
+          const tokenHash = sessionData.token_hash || sessionData.magic_link_token;
+
+          if (tokenHash) {
             const supabase = createClient();
 
-            // The magic link URL contains the token - we need to verify it
+            const { data, error: verifyError } = await supabase.auth.verifyOtp({
+              token_hash: tokenHash,
+              type: 'magiclink',
+            });
+
+            if (verifyError) {
+              console.error('[Auth] Magic link verification failed:', verifyError);
+              // Continue anyway - Valyu tokens are still valid for API calls
+            } else {
+              console.log('[Auth] Local session created successfully');
+              set({ user: data.user });
+            }
+          } else if (sessionData.magic_link_url) {
+            // Fallback: extract token from URL
+            const supabase = createClient();
             const url = new URL(sessionData.magic_link_url);
-            const token = url.searchParams.get('token') || sessionData.magic_link_token;
+            const token = url.searchParams.get('token');
 
             if (token) {
               const { data, error: verifyError } = await supabase.auth.verifyOtp({
@@ -157,7 +173,6 @@ export const useAuthStore = create<AuthStore>()(
 
               if (verifyError) {
                 console.error('[Auth] Magic link verification failed:', verifyError);
-                // Continue anyway - Valyu tokens are still valid for API calls
               } else {
                 console.log('[Auth] Local session created successfully');
                 set({ user: data.user });
