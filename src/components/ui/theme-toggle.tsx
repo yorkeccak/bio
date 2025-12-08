@@ -2,16 +2,15 @@
 
 import { useTheme } from 'next-themes';
 import { ThemeSwitcher } from './theme-switcher';
-import { useRateLimit } from '@/lib/hooks/use-rate-limit';
+import { useAuthStore } from '@/lib/stores/use-auth-store';
 
 export function ThemeSelector() {
   const { setTheme, theme } = useTheme();
-  const { tier, hasPolarCustomer } = useRateLimit();
-  
-  const hasSubscription = tier !== 'free' && tier !== 'anonymous';
+  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
+  const hasSubscription = !!valyuAccessToken;
 
   return (
-    <ThemeSwitcher 
+    <ThemeSwitcher
       value={theme as 'light' | 'dark' | 'system'}
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"
@@ -21,20 +20,20 @@ export function ThemeSelector() {
   );
 }
 
-export function CompactThemeSelector({ 
-  onUpgradeClick, 
-  sessionId 
-}: { 
+export function CompactThemeSelector({
+  onUpgradeClick,
+  sessionId
+}: {
   onUpgradeClick?: () => void;
   sessionId?: string;
 }) {
   const { setTheme, theme } = useTheme();
-  const { tier, hasPolarCustomer, userId } = useRateLimit();
-  
-  const hasSubscription = tier !== 'free' && tier !== 'anonymous';
+  const user = useAuthStore((state) => state.user);
+  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
+  const hasSubscription = !!valyuAccessToken;
 
   return (
-    <ThemeSwitcher 
+    <ThemeSwitcher
       value={theme as 'light' | 'dark' | 'system'}
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"
@@ -42,21 +41,20 @@ export function CompactThemeSelector({
       requiresSubscription={true}
       hasSubscription={hasSubscription}
       onUpgradeClick={onUpgradeClick}
-      userId={userId}
+      userId={user?.id}
       sessionId={sessionId}
-      tier={tier}
+      tier={valyuAccessToken ? 'authenticated' : 'anonymous'}
     />
   );
 }
 
 export function ThemeMenuItem() {
   const { setTheme, theme } = useTheme();
-  const { tier, hasPolarCustomer } = useRateLimit();
-  
-  const hasSubscription = tier !== 'free' && tier !== 'anonymous';
+  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
+  const hasSubscription = !!valyuAccessToken;
 
   return (
-    <ThemeSwitcher 
+    <ThemeSwitcher
       value={theme as 'light' | 'dark' | 'system'}
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"

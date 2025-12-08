@@ -2,11 +2,72 @@ import { z } from "zod";
 import { tool } from "ai";
 import { Valyu } from "valyu-js";
 import { track } from "@vercel/analytics/server";
-import { PolarEventTracker } from '@/lib/polar-events';
 import { Daytona } from '@daytonaio/sdk';
 import { createClient } from '@/utils/supabase/server';
 import * as db from '@/lib/db';
 import { randomUUID } from 'crypto';
+
+// Valyu OAuth Proxy URL for authenticated API calls
+const VALYU_OAUTH_PROXY_URL = process.env.VALYU_OAUTH_PROXY_URL ||
+  `${process.env.VALYU_APP_URL || 'https://platform.valyu.ai'}/api/oauth/proxy`;
+
+/**
+ * Call Valyu API using OAuth proxy when user token is available
+ * Falls back to server API key in development mode or when no token
+ */
+async function callValyuApi(
+  path: string,
+  body: any,
+  valyuAccessToken?: string
+): Promise<any> {
+  // If we have a user's OAuth token, use the proxy (charges to user's org credits)
+  if (valyuAccessToken) {
+    console.log('[Valyu API] Using OAuth proxy for path:', path);
+
+    const response = await fetch(VALYU_OAUTH_PROXY_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${valyuAccessToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        path,
+        method: 'POST',
+        body,
+      }),
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[Valyu API] Proxy error:', response.status, errorText);
+      throw new Error(`Valyu API call failed: ${response.status}`);
+    }
+
+    return response.json();
+  }
+
+  // Fallback: Use server API key (dev mode or anonymous users)
+  console.log('[Valyu API] Using server API key for path:', path);
+  const apiKey = process.env.VALYU_API_KEY;
+  if (!apiKey) {
+    throw new Error('Valyu API key not configured');
+  }
+
+  const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
+
+  // Parse the path and call appropriate method
+  // The SDK's search() method calls the DeepSearch API
+  if (path === '/v1/deepsearch' || path === '/deepsearch' || path === '/v1/search' || path === '/search') {
+    return valyu.search(body.query, {
+      maxNumResults: body.maxNumResults || body.max_num_results || 10,
+      searchType: body.searchType || body.search_type || 'all',
+      includedSources: body.includedSources || body.included_sources,
+      relevanceThreshold: body.relevanceThreshold || body.relevance_threshold,
+    });
+  }
+
+  throw new Error(`Unsupported API path: ${path}`);
+}
 
 export const healthcareTools = {
   // Chart Creation Tool - Create interactive charts for biomedical data visualization
@@ -418,7 +479,6 @@ export const healthcareTools = {
     execute: async ({ code, description }, options) => {
       const userId = (options as any)?.experimental_context?.userId;
       const sessionId = (options as any)?.experimental_context?.sessionId;
-      const userTier = (options as any)?.experimental_context?.userTier;
       const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
 
       const startTime = Date.now();
@@ -451,19 +511,6 @@ export const healthcareTools = {
             executionTime: executionTime,
             hasDescription: !!description,
           });
-
-          if (userId && sessionId && userTier === 'pay_per_use' && execution.exitCode === 0 && !isDevelopment) {
-            try {
-              const polarTracker = new PolarEventTracker();
-              await polarTracker.trackDaytonaUsage(userId, sessionId, executionTime, {
-                codeLength: code.length,
-                success: true,
-                description: description || 'Code execution'
-              });
-            } catch (error) {
-              console.error('[CodeExecution] Failed to track usage:', error);
-            }
-          }
 
           if (execution.exitCode !== 0) {
             return `❌ **Execution Error**: ${execution.result || 'Unknown error'}`;
@@ -505,45 +552,23 @@ ${execution.result || '(No output produced)'}
       maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
     }),
     execute: async ({ query, maxResults }, options) => {
-      const userId = (options as any)?.experimental_context?.userId;
-      const sessionId = (options as any)?.experimental_context?.sessionId;
-      const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
 
       try {
-        const apiKey = process.env.VALYU_API_KEY;
-        if (!apiKey) {
-          return "❌ Valyu API key not configured.";
-        }
-        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
-
-        const response = await valyu.search(query, {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
           maxNumResults: 6,
           searchType: "proprietary",
           includedSources: ["valyu/valyu-clinical-trials"],
           relevanceThreshold: 0.4,
-          isToolCall: true,
-        });
+        }, valyuAccessToken);
 
         await track("Valyu API Call", {
           toolType: "clinicalTrialsSearch",
           query: query,
           resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
         });
-
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
-          try {
-            const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            await polarTracker.trackValyuAPIUsage(userId, sessionId, "clinicalTrialsSearch", valyuCostDollars, {
-              query,
-              resultCount: response?.results?.length || 0,
-              success: true,
-            });
-          } catch (error) {
-            console.error('[ClinicalTrialsSearch] Failed to track usage:', error);
-          }
-        }
 
         return JSON.stringify({
           type: "clinical_trials",
@@ -566,45 +591,23 @@ ${execution.result || '(No output produced)'}
       maxResults: z.number().min(1).max(10).optional().default(5).describe('Maximum number of results'),
     }),
     execute: async ({ query, maxResults }, options) => {
-      const userId = (options as any)?.experimental_context?.userId;
-      const sessionId = (options as any)?.experimental_context?.sessionId;
-      const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
 
       try {
-        const apiKey = process.env.VALYU_API_KEY;
-        if (!apiKey) {
-          return "❌ Valyu API key not configured.";
-        }
-        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
-
-        const response = await valyu.search(query, {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
           maxNumResults: maxResults || 5,
           searchType: "proprietary",
           includedSources: ["valyu/valyu-drug-labels"],
           relevanceThreshold: 0.5,
-          isToolCall: true,
-        });
+        }, valyuAccessToken);
 
         await track("Valyu API Call", {
           toolType: "drugInformationSearch",
           query: query,
           resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
         });
-
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
-          try {
-            const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            await polarTracker.trackValyuAPIUsage(userId, sessionId, "drugInformationSearch", valyuCostDollars, {
-              query,
-              resultCount: response?.results?.length || 0,
-              success: true,
-            });
-          } catch (error) {
-            console.error('[DrugInformationSearch] Failed to track usage:', error);
-          }
-        }
 
         return JSON.stringify({
           type: "drug_information",
@@ -627,43 +630,22 @@ ${execution.result || '(No output produced)'}
       maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
     }),
     execute: async ({ query, maxResults }, options) => {
-      const userId = (options as any)?.experimental_context?.userId;
-      const sessionId = (options as any)?.experimental_context?.sessionId;
-      const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
 
       try {
-        const apiKey = process.env.VALYU_API_KEY;
-        if (!apiKey) {
-          return "❌ Valyu API key not configured.";
-        }
-        const valyu = new Valyu(apiKey, "https://api.valyu.network/v1");
-
-        const response = await valyu.search(query, {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
           maxNumResults: maxResults || 10,
           searchType: "proprietary",
           includedSources: ["valyu/valyu-pubmed", "valyu/valyu-arxiv", "valyu/valyu-medrxiv", "valyu/valyu-biorxiv"],
-        });
+        }, valyuAccessToken);
 
         await track("Valyu API Call", {
           toolType: "biomedicalLiteratureSearch",
           query: query,
           resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
         });
-
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
-          try {
-            const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            await polarTracker.trackValyuAPIUsage(userId, sessionId, "biomedicalLiteratureSearch", valyuCostDollars, {
-              query,
-              resultCount: response?.results?.length || 0,
-              success: true,
-            });
-          } catch (error) {
-            console.error('[BiomedicalLiteratureSearch] Failed to track usage:', error);
-          }
-        }
 
         return JSON.stringify({
           type: "biomedical_literature",
@@ -684,39 +666,21 @@ ${execution.result || '(No output produced)'}
       maxResults: z.number().min(1).max(20).optional().default(5).describe('Maximum number of results'),
     }),
     execute: async ({ query, maxResults }, options) => {
-      const userId = (options as any)?.experimental_context?.userId;
-      const sessionId = (options as any)?.experimental_context?.sessionId;
-      const userTier = (options as any)?.experimental_context?.userTier;
-      const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
 
       try {
-        const valyu = new Valyu(process.env.VALYU_API_KEY, "https://api.valyu.network/v1");
-
-        const response = await valyu.search(query, {
-          searchType: "all" as const,
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
           maxNumResults: maxResults || 5,
-          isToolCall: true,
-        });
+          searchType: "all",
+        }, valyuAccessToken);
 
         await track("Valyu API Call", {
           toolType: "webSearch",
           query: query,
           resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
         });
-
-        if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
-          try {
-            const polarTracker = new PolarEventTracker();
-            const valyuCostDollars = (response as any)?.total_deduction_dollars || 0;
-            await polarTracker.trackValyuAPIUsage(userId, sessionId, "webSearch", valyuCostDollars, {
-              query,
-              resultCount: response?.results?.length || 0,
-              success: true,
-            });
-          } catch (error) {
-            console.error('[WebSearch] Failed to track usage:', error);
-          }
-        }
 
         return JSON.stringify({
           type: "web_search",

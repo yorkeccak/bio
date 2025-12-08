@@ -18,7 +18,6 @@ import { useSubscription } from "@/hooks/use-subscription";
 import { createClient } from '@/utils/supabase/client-wrapper';
 import { track } from '@vercel/analytics';
 import { AuthModal } from '@/components/auth/auth-modal';
-import { RateLimitBanner } from '@/components/rate-limit-banner';
 import { ModelCompatibilityDialog } from '@/components/model-compatibility-dialog';
 
 import {
@@ -1610,29 +1609,23 @@ const SearchResultsCarousel = ({
 export function ChatInterface({
   sessionId,
   onMessagesChange,
-  onRateLimitError,
   onSessionCreated,
   onNewChat,
-  rateLimitProps,
+  isAuthenticated,
+  onShowAuth,
 }: {
   sessionId?: string;
   onMessagesChange?: (hasMessages: boolean) => void;
-  onRateLimitError?: (resetTime: string) => void;
   onSessionCreated?: (sessionId: string) => void;
   onNewChat?: () => void;
-  rateLimitProps?: {
-    allowed?: boolean;
-    remaining?: number;
-    resetTime?: Date;
-    increment: () => Promise<any>;
-  };
+  isAuthenticated?: boolean;
+  onShowAuth?: () => void;
 }) {
   const [input, setInput] = useState("");
   const [editingMessageId, setEditingMessageId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [isTraceExpanded, setIsTraceExpanded] = useState(false);
-  const [isRateLimited, setIsRateLimited] = useState(false);
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(undefined);
   const sessionIdRef = useRef<string | undefined>(undefined);
   const [isLoadingSession, setIsLoadingSession] = useState(false);
@@ -1655,45 +1648,6 @@ export function ChatInterface({
 
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  // Rate limit props passed from parent
-  const { allowed, remaining, resetTime, increment } = rateLimitProps || {};
-  const canSendQuery = allowed;
-
-  // Optimistic rate limit increment mutation
-  const rateLimitMutation = useMutation({
-    mutationFn: async () => {
-      // This is a dummy mutation since the actual increment happens server-side
-      return Promise.resolve();
-    },
-    onMutate: async () => {
-      // Cancel outgoing refetches
-      await queryClient.cancelQueries({ queryKey: ['rateLimit'] });
-      
-      // Snapshot previous value
-      const previousData = queryClient.getQueryData(['rateLimit']);
-      
-      // Optimistically update
-      queryClient.setQueryData(['rateLimit'], (old: any) => {
-        if (!old) return old;
-        return {
-          ...old,
-          used: (old.used || 0) + 1,
-          remaining: Math.max(0, (old.remaining || 0) - 1),
-          allowed: (old.used || 0) + 1 < (old.limit || 5)
-        };
-      });
-      
-      return { previousData };
-    },
-    onError: (err, variables, context) => {
-      // Rollback on error
-      if (context?.previousData) {
-        queryClient.setQueryData(['rateLimit'], context.previousData);
-      }
-    },
-    // No onSettled - let the optimistic update persist until chat finishes
-  });
-
 
   const { selectedModel, selectedProvider } = useLocalProvider();
   const user = useAuthStore((state) => state.user);
@@ -1703,7 +1657,6 @@ export function ChatInterface({
   const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Signup prompt for non-authenticated users
-  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
 
   // Listen for global auth modal trigger (from sidebar, etc.)
   useEffect(() => {
@@ -1824,6 +1777,9 @@ export function ChatInterface({
 
   // Placeholder for loadSessionMessages - will be defined after useChat hook
   
+  // Get Valyu access token from auth store
+  const getValyuAccessToken = useAuthStore((state) => state.getValyuAccessToken);
+
   const transport = useMemo(() =>
     new DefaultChatTransport({
       api: "/api/chat",
@@ -1853,17 +1809,21 @@ export function ChatInterface({
           }
         }
 
+        // Get Valyu access token for API calls
+        const valyuAccessToken = getValyuAccessToken();
+
         // Rate limit increment is handled by the backend API
 
         return {
           body: {
             messages,
             sessionId: sessionIdRef.current,
+            valyuAccessToken, // Pass Valyu token for API billing
           },
           headers,
         };
       }
-    }), [selectedModel, selectedProvider, user, increment]
+    }), [selectedModel, selectedProvider, user, getValyuAccessToken]
   );
 
   const {
@@ -2004,11 +1964,6 @@ export function ChatInterface({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]); // Only sessionId prop dependency - internal state changes should not retrigger this
 
-  // Check rate limit status 
-  useEffect(() => {
-    setIsRateLimited(!canSendQuery);
-  }, [canSendQuery]);
-
   // Detect mobile device
   useEffect(() => {
     const checkMobile = () => {
@@ -2027,26 +1982,6 @@ export function ChatInterface({
     return () => window.removeEventListener('resize', checkMobile);
   }, []); // Empty dependency array - only run on mount
 
-  // Handle rate limit errors
-  useEffect(() => {
-    if (error) {
-      
-      // Check if it's a rate limit error
-      if (error.message && (error.message.includes('RATE_LIMIT_EXCEEDED') || error.message.includes('429'))) {
-        setIsRateLimited(true);
-        try {
-          // Try to extract reset time from error response
-          const errorData = JSON.parse(error.message);
-          const resetTime = errorData.resetTime || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-          onRateLimitError?.(resetTime);
-        } catch (e) {
-          // Fallback: use default reset time (next day)
-          const resetTime = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
-          onRateLimitError?.(resetTime);
-        }
-      }
-    }
-  }, [error]); // Remove onRateLimitError from dependencies to prevent infinite loops
 
   // Notify parent component about message state changes
   useEffect(() => {
@@ -2376,26 +2311,18 @@ export function ChatInterface({
     }
   }, [status]);
 
-  const handleSubmit = async (e: React.FormEvent, skipSignupPrompt = false) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (input.trim() && status === "ready") {
-      // Check current rate limit status immediately before sending
-
-      if (!canSendQuery) {
-        // Rate limit exceeded - show dialog and don't send message or update URL
-        setIsRateLimited(true);
-        onRateLimitError?.(resetTime?.toISOString() || new Date().toISOString());
+      // Check if user is authenticated with Valyu
+      if (!isAuthenticated) {
+        // Show auth modal for unauthenticated users
+        onShowAuth?.();
         return;
       }
 
       // Store the input to send
       const queryText = input.trim();
-
-      // Show signup prompt for non-authenticated users on first message
-      if (!user && messages.length === 0 && !skipSignupPrompt) {
-        setShowSignupPrompt(true);
-        return; // Don't send message yet
-      }
 
       // Set submitting flag to prevent URL sync race condition
       setIsSubmitting(true);
@@ -2408,7 +2335,6 @@ export function ChatInterface({
         query: queryText,
         queryLength: queryText.length,
         messageCount: messages.length,
-        remainingQueries: remaining ? remaining - 1 : 0
       });
 
       updateUrlWithQuery(queryText);
@@ -2431,22 +2357,8 @@ export function ChatInterface({
         }
       }
 
-      // Increment rate limit for anonymous users (authenticated users handled server-side)
-      if (!user && increment) {
-        try {
-          const result = await increment();
-        } catch (error) {
-          // Continue with message sending even if increment fails
-        }
-      }
-
       // Send message with sessionId available for usage tracking
       sendMessage({ text: queryText });
-      
-      // For authenticated users, trigger optimistic rate limit update
-      if (user) {
-        rateLimitMutation.mutate();
-      }
     }
   };
 
@@ -4135,49 +4047,11 @@ export function ChatInterface({
         )}
       </AnimatePresence>
 
-      {/* Rate Limit Banner */}
-      <RateLimitBanner />
-
       {/* Auth Modal for Paywalls */}
       <AuthModal
         open={showAuthModal}
         onClose={() => setShowAuthModal(false)}
       />
-
-      {/* Signup Prompt Dialog for non-authenticated users */}
-      <Dialog open={showSignupPrompt} onOpenChange={setShowSignupPrompt}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-lg font-semibold text-gray-900 dark:text-gray-100">
-              Sign up to save your chat
-            </DialogTitle>
-            <DialogDescription className="text-sm text-gray-600 dark:text-gray-400 mt-2">
-              Create a free account to save your chat history and access it anytime.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3 mt-6">
-            <button
-              onClick={() => {
-                setShowSignupPrompt(false);
-                setShowAuthModal(true);
-              }}
-              className="w-full px-4 py-2.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 font-medium rounded-lg hover:bg-gray-800 dark:hover:bg-gray-200 transition-all"
-            >
-              Sign up (free)
-            </button>
-            <button
-              onClick={(e) => {
-                setShowSignupPrompt(false);
-                // Submit with skip flag to bypass the signup prompt
-                handleSubmit(e as any, true);
-              }}
-              className="w-full px-4 py-2.5 bg-transparent border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-800 transition-all"
-            >
-              Continue without account
-            </button>
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Model Compatibility Dialog */}
       <ModelCompatibilityDialog

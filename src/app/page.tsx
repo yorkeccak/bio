@@ -1,73 +1,51 @@
 'use client';
 
 import { ChatInterface } from '@/components/chat-interface';
-import { RateLimitDialog } from '@/components/rate-limit-dialog';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import BottomBar from '@/components/bottom-bar';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
-import { createClient } from '@/utils/supabase/client';
 import { Button } from '@/components/ui/button';
 import {
   CheckCircle,
   AlertCircle,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useRateLimit } from '@/lib/hooks/use-rate-limit';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { Sidebar } from '@/components/sidebar';
-import { SignupPrompt } from '@/components/signup-prompt';
 import { EnterpriseBanner } from '@/components/enterprise/enterprise-banner';
 
 function HomeContent() {
-  const { user, loading } = useAuthStore();
+  const { user, loading, valyuAccessToken } = useAuthStore();
   const queryClient = useQueryClient();
-  const { allowed, remaining, resetTime, increment } = useRateLimit();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [hasMessages, setHasMessages] = useState(false);
   const [isHoveringTitle, setIsHoveringTitle] = useState(false);
   const [autoTiltTriggered, setAutoTiltTriggered] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [showRateLimitDialog, setShowRateLimitDialog] = useState(false);
-  const [rateLimitResetTime, setRateLimitResetTime] = useState(new Date());
-  
+
   // Get chatId from URL params
   const chatIdParam = searchParams.get('chatId');
   const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(chatIdParam || undefined);
   const [chatKey, setChatKey] = useState(0); // Force remount key
-  
+
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
-  const [messageCount, setMessageCount] = useState(0);
-  const [showSignupPrompt, setShowSignupPrompt] = useState(false);
 
-  // Handle rate limit errors from chat interface
-  const handleRateLimitError = useCallback((resetTime: string) => {
-    setRateLimitResetTime(new Date(resetTime));
-    setShowRateLimitDialog(true);
+  // Listen for auth modal events
+  useEffect(() => {
+    const handleShowAuthModal = () => setShowAuthModal(true);
+    window.addEventListener('show-auth-modal', handleShowAuthModal);
+    return () => window.removeEventListener('show-auth-modal', handleShowAuthModal);
   }, []);
 
   const handleMessagesChange = useCallback((hasMessages: boolean) => {
     setHasMessages(hasMessages);
-
-    // Track message count for non-logged-in users
-    // Only show signup prompt in production
-    if (!user && hasMessages && process.env.NODE_ENV === 'production') {
-      const newCount = messageCount + 1;
-      setMessageCount(newCount);
-
-      // Show signup prompt after 3 messages
-      if (newCount === 3) {
-        setTimeout(() => {
-          setShowSignupPrompt(true);
-        }, 2000); // Show after 2 seconds
-      }
-    }
-  }, [user, messageCount]);
+  }, []);
 
   const handleSignUpSuccess = useCallback((message: string) => {
     setNotification({ type: 'success', message });
@@ -96,58 +74,6 @@ function HomeContent() {
       router.replace('/'); // Remove URL params
     }
 
-    // Handle checkout success
-    const checkoutSuccess = searchParams.get('checkout');
-    const checkoutPlan = searchParams.get('plan');
-    const customerSessionToken = searchParams.get('customer_session_token');
-
-    if (checkoutSuccess === 'success' && checkoutPlan && customerSessionToken && user) {
-      
-      // Call our checkout success API
-      const processCheckout = async () => {
-        try {
-          const supabase = createClient();
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          const response = await fetch('/api/checkout/success', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'Authorization': `Bearer ${session?.access_token}`
-            },
-            body: JSON.stringify({
-              customerSessionToken,
-              plan: checkoutPlan
-            })
-          });
-
-          const result = await response.json();
-
-          if (response.ok) {
-            setNotification({ 
-              type: 'success', 
-              message: `Successfully upgraded to ${checkoutPlan} plan! You can now use the service.` 
-            });
-            // Refresh auth state to update subscription tier
-            window.location.reload();
-          } else {
-            setNotification({ 
-              type: 'error', 
-              message: `Failed to complete upgrade: ${result.error || 'Unknown error'}` 
-            });
-          }
-        } catch (error) {
-          setNotification({ 
-            type: 'error', 
-            message: 'Failed to process checkout. Please contact support.' 
-          });
-        }
-      };
-
-      processCheckout();
-      router.replace('/'); // Remove checkout params from URL
-    }
-
     // Auto-hide notifications after 5 seconds
     if (notification) {
       const timer = setTimeout(() => {
@@ -155,7 +81,7 @@ function HomeContent() {
       }, 5000);
       return () => clearTimeout(timer);
     }
-  }, [searchParams, router, notification, user]);
+  }, [searchParams, router, notification]);
 
   // Detect mobile device for touch interactions
   useEffect(() => {
@@ -392,33 +318,20 @@ function HomeContent() {
           transition={{ delay: 0.3, duration: 0.5 }}
         >
           <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
-            <ChatInterface 
+            <ChatInterface
               key={chatKey}
               sessionId={currentSessionId}
-              onMessagesChange={handleMessagesChange} 
-              onRateLimitError={handleRateLimitError}
+              onMessagesChange={handleMessagesChange}
               onSessionCreated={handleSessionCreated}
               onNewChat={handleNewChat}
-              rateLimitProps={{
-                allowed,
-                remaining,
-                resetTime,
-                increment
-              }}
+              isAuthenticated={!!valyuAccessToken}
+              onShowAuth={() => setShowAuthModal(true)}
             />
           </Suspense>
         </motion.div>
-        
+
         <BottomBar />
       </div>
-      
-      {/* Rate Limit Dialog */}
-      <RateLimitDialog
-        open={showRateLimitDialog}
-        onOpenChange={setShowRateLimitDialog}
-        resetTime={rateLimitResetTime}
-        onShowAuth={() => setShowAuthModal(true)}
-      />
 
       {/* Auth Modal */}
       <AuthModal
@@ -426,19 +339,6 @@ function HomeContent() {
         onClose={() => setShowAuthModal(false)}
         onSignUpSuccess={handleSignUpSuccess}
       />
-
-      {/* Signup Prompt for non-logged-in users */}
-      {!user && (
-        <SignupPrompt
-          open={showSignupPrompt}
-          onClose={() => setShowSignupPrompt(false)}
-          onSignUp={() => {
-            setShowSignupPrompt(false);
-            setShowAuthModal(true);
-          }}
-          messageCount={messageCount}
-        />
-      )}
     </div>
   );
 }

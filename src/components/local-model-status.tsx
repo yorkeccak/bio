@@ -84,6 +84,10 @@ export function LocalModelStatus() {
   };
 
   useEffect(() => {
+    // Only check provider status in development mode
+    if (process.env.NEXT_PUBLIC_APP_MODE !== "development") {
+      return;
+    }
     checkBothProviders();
     const interval = setInterval(checkBothProviders, 30000);
     return () => clearInterval(interval);

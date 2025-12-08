@@ -1,4 +1,4 @@
-// Environment variable validation for critical payment and billing systems
+// Environment variable validation for Valyu OAuth and core services
 
 interface EnvValidationResult {
   valid: boolean;
@@ -9,7 +9,7 @@ interface EnvValidationResult {
 export function validatePaymentEnvironment(): EnvValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [];
-  
+
   const isDevelopment = process.env.NODE_ENV === 'development';
   const isProduction = !isDevelopment;
 
@@ -26,39 +26,26 @@ export function validatePaymentEnvironment(): EnvValidationResult {
 
   // Production-only requirements
   if (isProduction) {
-    // Polar requirements
-    if (!process.env.POLAR_ACCESS_TOKEN) {
-      errors.push('POLAR_ACCESS_TOKEN is required in production');
+    // Valyu OAuth requirements
+    if (!process.env.NEXT_PUBLIC_VALYU_SUPABASE_URL) {
+      warnings.push('NEXT_PUBLIC_VALYU_SUPABASE_URL missing - Valyu OAuth will fail');
     }
-    if (!process.env.POLAR_WEBHOOK_SECRET) {
-      errors.push('POLAR_WEBHOOK_SECRET is required in production');
+    if (!process.env.NEXT_PUBLIC_VALYU_CLIENT_ID) {
+      warnings.push('NEXT_PUBLIC_VALYU_CLIENT_ID missing - Valyu OAuth will fail');
     }
-    if (!process.env.POLAR_UNLIMITED_PRODUCT_ID) {
-      errors.push('POLAR_UNLIMITED_PRODUCT_ID is required in production');
+    if (!process.env.VALYU_CLIENT_SECRET) {
+      warnings.push('VALYU_CLIENT_SECRET missing - Valyu OAuth will fail');
     }
-    if (!process.env.POLAR_PAY_PER_USE_PRODUCT_ID) {
-      errors.push('POLAR_PAY_PER_USE_PRODUCT_ID is required in production');
-    }
-    
-    // API keys for usage tracking
+
+    // API keys for services
     if (!process.env.VALYU_API_KEY) {
-      warnings.push('VALYU_API_KEY missing - biomedical/web search will fail');
+      warnings.push('VALYU_API_KEY missing - biomedical/web search will fail for dev mode');
     }
     if (!process.env.DAYTONA_API_KEY) {
       warnings.push('DAYTONA_API_KEY missing - code execution will fail');
     }
     if (!process.env.OPENAI_API_KEY) {
       warnings.push('OPENAI_API_KEY missing - will use Vercel AI Gateway');
-    }
-  }
-
-  // Development warnings
-  if (isDevelopment) {
-    if (!process.env.POLAR_ACCESS_TOKEN) {
-      warnings.push('POLAR_ACCESS_TOKEN missing - payment testing will be limited');
-    }
-    if (!process.env.POLAR_PAY_PER_USE_PRODUCT_ID) {
-      warnings.push('POLAR_PAY_PER_USE_PRODUCT_ID missing - cannot test pay-per-use flow');
     }
   }
 
@@ -76,13 +63,11 @@ export function validatePaymentEnvironment(): EnvValidationResult {
 
 export function logEnvironmentStatus(): void {
   const validation = validatePaymentEnvironment();
-  const isDevelopment = process.env.NODE_ENV === 'development';
-  
-  if (validation.valid) {
-  } else {
+
+  if (!validation.valid) {
     validation.errors.forEach(error => console.error(`  - ${error}`));
   }
-  
+
   if (validation.warnings.length > 0) {
     validation.warnings.forEach(warning => console.warn(`  - ${warning}`));
   }

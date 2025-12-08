@@ -3,11 +3,7 @@ import { healthcareTools } from "@/lib/tools";
 import { BiomedUIMessage } from "@/lib/types";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { createOllama, ollama } from "ollama-ai-provider-v2";
-import { checkAnonymousRateLimit, incrementRateLimit } from "@/lib/rate-limit";
 import { createClient } from '@supabase/supabase-js';
-import { checkUserRateLimit } from '@/lib/rate-limit';
-import { validateAccess } from '@/lib/polar-access-validation';
-import { getPolarTrackedModel } from '@/lib/polar-llm-strategy';
 import * as db from '@/lib/db';
 import { isDevelopmentMode } from '@/lib/local-db/local-auth';
 import { saveChatMessages } from '@/lib/db';
@@ -17,39 +13,13 @@ export const maxDuration = 800;
 
 export async function POST(req: Request) {
   try {
-    const { messages, sessionId }: { messages: BiomedUIMessage[], sessionId?: string } = await req.json();
-    console.log("[Chat API] ========== NEW REQUEST ==========");
-    console.log("[Chat API] Received sessionId:", sessionId);
-    console.log("[Chat API] Number of messages:", messages.length);
-    // console.log(
-    //   "[Chat API] Incoming messages:",
-    //   JSON.stringify(messages, null, 2)
-    // );
-
-    // Determine if this is a user-initiated message (should count towards rate limit)
-    // ONLY increment for the very first user message in a conversation
-    // All tool calls, continuations, and follow-ups should NOT increment
-    const lastMessage = messages[messages.length - 1];
-    const isUserMessage = lastMessage?.role === 'user';
-    const userMessageCount = messages.filter(m => m.role === 'user').length;
-    
-    // Simple rule: Only increment if this is a user message AND it's the first user message
-    const isUserInitiated = isUserMessage && userMessageCount === 1;
-    
-    console.log("[Chat API] Rate limit check:", {
-      isUserMessage,
-      userMessageCount,
-      isUserInitiated,
-      totalMessages: messages.length
-    });
+    const { messages, sessionId, valyuAccessToken }: { messages: BiomedUIMessage[], sessionId?: string, valyuAccessToken?: string } = await req.json();
 
     // Check app mode and configure accordingly
     const isDevelopment = isDevelopmentMode();
-    console.log("[Chat API] App mode:", isDevelopment ? 'development' : 'production');
 
     // Get authenticated user (uses local auth in dev mode)
     const { data: { user } } = await db.getUser();
-    console.log("[Chat API] Authenticated user:", user?.id || 'anonymous');
 
     // Legacy Supabase clients (only used in production mode)
     let supabaseAnon: any = null;
@@ -74,75 +44,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // Validate access for authenticated users (simplified validation)
-    if (user && !isDevelopment) {
-      const accessValidation = await validateAccess(user.id);
-      
-      if (!accessValidation.hasAccess && accessValidation.requiresPaymentSetup) {
-        console.log("[Chat API] Access validation failed - payment required");
-        return new Response(
-          JSON.stringify({
-            error: "PAYMENT_REQUIRED",
-            message: "Payment method setup required",
-            tier: accessValidation.tier,
-            action: "setup_payment"
-          }),
-          { status: 402, headers: { 'Content-Type': 'application/json' } }
-        );
-      }
-      
-      if (accessValidation.hasAccess) {
-        console.log("[Chat API] Access validated for tier:", accessValidation.tier);
-      }
-    }
-
-    // Check rate limit for user-initiated messages
-    if (isUserInitiated && !isDevelopment) {
-      if (!user) {
-        // Fall back to anonymous rate limiting for non-authenticated users
-        const rateLimitStatus = await checkAnonymousRateLimit();
-        console.log("[Chat API] Anonymous rate limit status:", rateLimitStatus);
-        
-        if (!rateLimitStatus.allowed) {
-          console.log("[Chat API] Anonymous rate limit exceeded");
-          return new Response(
-            JSON.stringify({
-              error: "RATE_LIMIT_EXCEEDED",
-              message: "You have exceeded your daily limit of 5 queries. Sign up to continue.",
-              resetTime: rateLimitStatus.resetTime.toISOString(),
-              remaining: rateLimitStatus.remaining,
-            }),
-            {
-              status: 429,
-              headers: {
-                "Content-Type": "application/json",
-                "X-RateLimit-Limit": rateLimitStatus.limit.toString(),
-                "X-RateLimit-Remaining": rateLimitStatus.remaining.toString(),
-                "X-RateLimit-Reset": rateLimitStatus.resetTime.toISOString(),
-              },
-            }
-          );
-        }
-      } else {
-        // Check user-based rate limits
-        const rateLimitResult = await checkUserRateLimit(user.id);
-        console.log("[Chat API] User rate limit status:", rateLimitResult);
-        
-        if (!rateLimitResult.allowed) {
-          return new Response(JSON.stringify({
-            error: "RATE_LIMIT_EXCEEDED",
-            message: "Daily query limit reached. Upgrade to continue.",
-            resetTime: rateLimitResult.resetTime.toISOString(),
-            tier: rateLimitResult.tier
-          }), {
-            status: 429,
-            headers: { "Content-Type": "application/json" }
-          });
-        }
-      }
-    } else if (isUserInitiated && isDevelopment) {
-      console.log("[Chat API] Development mode: Rate limiting disabled");
-    }
+    // Access validation - with Valyu OAuth, users are authenticated via Valyu Platform
+    // Credits are managed by Valyu Platform, no local rate limiting needed
+    // Authentication is required to use the chat - enforced on frontend
 
     // Detect available API keys and select provider/tools accordingly
     const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
@@ -251,56 +155,25 @@ export async function POST(req: Request) {
         }
       } catch (error) {
         // Fallback to OpenAI in development mode
-        console.error(`[Chat API] Local provider error (${localProvider}):`, error);
-        console.log('[Chat API] Headers received:', {
-          'x-ollama-enabled': req.headers.get('x-ollama-enabled'),
-          'x-local-provider': req.headers.get('x-local-provider'),
-          'x-ollama-model': req.headers.get('x-ollama-model')
-        });
+        console.error(`[Chat API] Local provider error:`, error);
         selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
         modelInfo = hasOpenAIKey
           ? "OpenAI (gpt-5) - Development Mode Fallback"
           : 'Vercel AI Gateway ("gpt-5") - Development Mode Fallback';
       }
     } else {
-      // Production mode: Use Polar-wrapped OpenAI ONLY for pay-per-use users
-      if (user) {
-        // Get user subscription tier to determine billing approach
-        const { data: userData } = await db.getUserProfile(user.id);
-
-        const userTier = userData?.subscription_tier || userData?.subscriptionTier || 'free';
-        const isActive = (userData?.subscription_status || userData?.subscriptionStatus) === 'active';
-        
-        // Only use Polar LLM Strategy for pay-per-use users
-        if (isActive && userTier === 'pay_per_use') {
-          selectedModel = getPolarTrackedModel(user.id, "gpt-5");
-          modelInfo = "OpenAI (gpt-5) - Production Mode (Polar Tracked - Pay-per-use)";
-        } else {
-          // Unlimited users and free users use regular model (no per-token billing)
-          selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-          modelInfo = hasOpenAIKey
-            ? `OpenAI (gpt-5) - Production Mode (${userTier} tier - Flat Rate)`
-            : `Vercel AI Gateway ("gpt-5") - Production Mode (${userTier} tier - Flat Rate)`;
-        }
-      } else {
-        selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-        modelInfo = hasOpenAIKey
-          ? "OpenAI (gpt-5) - Production Mode (Anonymous)"
-          : 'Vercel AI Gateway ("gpt-5") - Production Mode (Anonymous)';
-      }
+      // Production mode: Use standard OpenAI
+      // Billing is handled by Valyu Platform through OAuth proxy
+      selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
+      modelInfo = hasOpenAIKey
+        ? `OpenAI (gpt-5) - Production Mode (${user ? 'Authenticated' : 'Anonymous'})`
+        : `Vercel AI Gateway ("gpt-5") - Production Mode (${user ? 'Authenticated' : 'Anonymous'})`;
     }
 
-    console.log("[Chat API] Model selected:", modelInfo);
+    // Usage tracking is handled by Valyu Platform through OAuth proxy
 
-    // No need for usage tracker - Polar LLM Strategy handles everything automatically
-
-    // User tier is already determined above in model selection
-    let userTier = 'free';
-    if (user) {
-      const { data: userData } = await db.getUserProfile(user.id);
-      userTier = userData?.subscription_tier || userData?.subscriptionTier || 'free';
-      console.log("[Chat API] User tier:", userTier);
-    }
+    // User tier - with Valyu OAuth, all authenticated users have access via their org credits
+    let userTier = user ? 'authenticated' : 'anonymous';
 
     // Track processing start time
     const processingStartTime = Date.now();
@@ -308,9 +181,6 @@ export async function POST(req: Request) {
     // Note: We don't save individual messages here anymore.
     // The entire conversation is saved in onFinish callback after streaming completes.
     // This follows the Vercel AI SDK v5 recommended pattern.
-
-    console.log(`[Chat API] About to call streamText with model:`, selectedModel);
-    console.log(`[Chat API] Model info:`, modelInfo);
 
     // Build provider options conditionally based on whether we're using local providers
     const isUsingLocalProvider = isDevelopment && localEnabled && (modelInfo.includes('Ollama') || modelInfo.includes('LM Studio'));
@@ -324,13 +194,11 @@ export async function POST(req: Request) {
         providerOptions.openai = {
           think: true
         };
-        console.log(`[Chat API] Enabled thinking mode for ${localProvider} reasoning model`);
       } else {
         // Explicitly disable thinking for non-reasoning models
         providerOptions.openai = {
           think: false
         };
-        console.log(`[Chat API] Disabled thinking mode for ${localProvider} non-reasoning model`);
       }
     } else {
       // OpenAI-specific options (only when using OpenAI)
@@ -344,7 +212,6 @@ export async function POST(req: Request) {
 
     // Save user message immediately (before streaming starts)
     if (user && sessionId && messages.length > 0) {
-      console.log('[Chat API] Saving user message immediately before streaming');
       const lastMessage = messages[messages.length - 1];
       if (lastMessage.role === 'user') {
         const { randomUUID } = await import('crypto');
@@ -368,7 +235,6 @@ export async function POST(req: Request) {
         await db.updateChatSession(sessionId, user.id, {
           last_message_at: new Date()
         });
-        console.log('[Chat API] User message saved');
       }
     }
 
@@ -381,6 +247,7 @@ export async function POST(req: Request) {
         userId: user?.id,
         userTier,
         sessionId,
+        valyuAccessToken, // Pass Valyu OAuth token to tools for API proxy
       },
       providerOptions,
       // DON'T pass abortSignal - we want the stream to continue even if user switches tabs
@@ -669,10 +536,6 @@ export async function POST(req: Request) {
       `,
     });
 
-    // Log streamText result object type
-    console.log("[Chat API] streamText result type:", typeof result);
-    console.log("[Chat API] streamText result:", result);
-
     // Create the streaming response with chat persistence
     const streamResponse = result.toUIMessageStreamResponse({
       sendReasoning: true,
@@ -681,16 +544,8 @@ export async function POST(req: Request) {
         // Calculate processing time
         const processingEndTime = Date.now();
         const processingTimeMs = processingEndTime - processingStartTime;
-        console.log('[Chat API] Processing completed in', processingTimeMs, 'ms');
-
-        // Save all messages to database
-        console.log('[Chat API] onFinish called - user:', !!user, 'sessionId:', sessionId);
-        console.log('[Chat API] Total messages in conversation:', allMessages.length);
-        console.log('[Chat API] Will save messages:', !!(user && sessionId));
 
         if (user && sessionId) {
-          console.log('[Chat API] Saving messages to session:', sessionId);
-
           // The correct pattern: Save ALL messages from the conversation
           // This replaces all messages in the session with the complete, up-to-date conversation
           const { randomUUID } = await import('crypto');
@@ -728,50 +583,21 @@ export async function POST(req: Request) {
           if (saveResult.error) {
             console.error('[Chat API] Error saving messages:', saveResult.error);
           } else {
-            console.log('[Chat API] Successfully saved', messagesToSave.length, 'messages to session:', sessionId);
-
             // Update session's last_message_at timestamp
             const updateResult = await db.updateChatSession(sessionId, user.id, {
               last_message_at: new Date()
             });
             if (updateResult.error) {
               console.error('[Chat API] Error updating session timestamp:', updateResult.error);
-            } else {
-              console.log('[Chat API] Updated session timestamp for:', sessionId);
             }
           }
-        } else {
-          console.log('[Chat API] Skipping message save - user:', !!user, 'sessionId:', sessionId);
         }
-
-        // No manual usage tracking needed - Polar LLM Strategy handles this automatically!
-        console.log('[Chat API] AI usage automatically tracked by Polar LLM Strategy');
       }
     });
 
-    // Increment rate limit after successful validation but before processing
-    if (isUserInitiated && !isDevelopment) {
-      console.log("[Chat API] Incrementing rate limit for user-initiated message");
-      try {
-        if (user) {
-          // Only increment server-side for authenticated users
-          const rateLimitResult = await incrementRateLimit(user.id);
-          console.log("[Chat API] Authenticated user rate limit incremented:", rateLimitResult);
-        } else {
-          // Anonymous users handle increment client-side via useRateLimit hook
-          console.log("[Chat API] Skipping server-side increment for anonymous user (handled client-side)");
-        }
-      } catch (error) {
-        console.error("[Chat API] Failed to increment rate limit:", error);
-        // Continue with processing even if increment fails
-      }
-    }
-    
     if (isDevelopment) {
       // Add development mode headers
       streamResponse.headers.set("X-Development-Mode", "true");
-      streamResponse.headers.set("X-RateLimit-Limit", "unlimited");
-      streamResponse.headers.set("X-RateLimit-Remaining", "unlimited");
     }
 
     // Add headers to prevent connection drops when tab is backgrounded
