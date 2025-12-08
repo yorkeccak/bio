@@ -14,6 +14,8 @@ import {
   CreditCard,
   BarChart3,
   ChevronsUpDown,
+  MoreHorizontal,
+  Share,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import {
@@ -227,37 +229,32 @@ export function AppSidebar({
 
           <SidebarSeparator />
 
-          {/* Chat History */}
-          <SidebarGroup className="flex-1">
-            <SidebarGroupLabel>Chat History</SidebarGroupLabel>
-            <SidebarGroupContent>
-              {!user ? (
-                <div className="px-2 py-4 text-center">
-                  <p className="text-xs text-muted-foreground mb-2">
-                    Sign in to save your chat history
-                  </p>
-                  <SidebarMenuButton
-                    onClick={() => window.dispatchEvent(new CustomEvent('show-auth-modal'))}
-                    className="w-full justify-center bg-primary text-primary-foreground hover:bg-primary/90"
-                  >
-                    Sign In
-                  </SidebarMenuButton>
-                </div>
-              ) : loadingSessions ? (
-                <SidebarMenu>
-                  {[...Array(5)].map((_, i) => (
-                    <SidebarMenuItem key={i}>
-                      <SidebarMenuSkeleton showIcon />
-                    </SidebarMenuItem>
-                  ))}
-                </SidebarMenu>
-              ) : sessions.length === 0 ? (
-                <div className="px-2 py-4 text-center">
-                  <p className="text-xs text-muted-foreground">
-                    No chat history yet
-                  </p>
-                </div>
-              ) : (
+          {/* Chat History - Hidden when logged in with no sessions */}
+          {(!user || sessions.length > 0) && (
+            <SidebarGroup className="flex-1">
+              <SidebarGroupLabel>Chat History</SidebarGroupLabel>
+              <SidebarGroupContent>
+                {!user ? (
+                  <div className="px-2 py-4 text-center">
+                    <p className="text-xs text-muted-foreground mb-2">
+                      Sign in to save your chat history
+                    </p>
+                    <SidebarMenuButton
+                      onClick={() => window.dispatchEvent(new CustomEvent('show-auth-modal'))}
+                      className="w-full justify-center bg-primary text-primary-foreground hover:bg-primary/90"
+                    >
+                      Sign In
+                    </SidebarMenuButton>
+                  </div>
+                ) : loadingSessions ? (
+                  <SidebarMenu>
+                    {[...Array(5)].map((_, i) => (
+                      <SidebarMenuItem key={i}>
+                        <SidebarMenuSkeleton showIcon />
+                      </SidebarMenuItem>
+                    ))}
+                  </SidebarMenu>
+                ) : (
                 <SidebarMenu>
                     {sessions.map((session: ChatSession) => (
                       <SidebarMenuItem key={session.id}>
@@ -267,22 +264,33 @@ export function AppSidebar({
                         >
                           <span>{session.title}</span>
                         </SidebarMenuButton>
-                        <SidebarMenuAction
-                          showOnHover
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteMutation.mutate(session.id);
-                          }}
-                          title="Delete chat"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </SidebarMenuAction>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild>
+                            <SidebarMenuAction showOnHover>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </SidebarMenuAction>
+                          </DropdownMenuTrigger>
+                          <DropdownMenuContent side="right" align="start">
+                            <DropdownMenuItem>
+                              <Share className="h-4 w-4 mr-2" />
+                              Share
+                            </DropdownMenuItem>
+                            <DropdownMenuItem
+                              variant="destructive"
+                              onClick={() => deleteMutation.mutate(session.id)}
+                            >
+                              <Trash2 className="h-4 w-4 mr-2" />
+                              Delete
+                            </DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
                       </SidebarMenuItem>
                     ))}
                   </SidebarMenu>
               )}
             </SidebarGroupContent>
-          </SidebarGroup>
+            </SidebarGroup>
+          )}
         </SidebarContent>
 
         {/* Footer with User Actions */}
