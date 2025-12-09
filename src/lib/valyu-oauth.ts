@@ -172,6 +172,8 @@ export async function buildAuthorizationUrl(): Promise<string> {
     state,
     code_challenge: codeChallenge,
     code_challenge_method: 'S256',
+    // Track which app the user came from
+    utm_source: 'bio.valyu.ai',
   });
 
   return `${VALYU_OAUTH_CONFIG.authorizationEndpoint}?${params.toString()}`;
