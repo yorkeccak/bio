@@ -231,7 +231,7 @@ export function AppSidebar({
 
           {/* Chat History - Hidden when logged in with no sessions */}
           {(!user || sessions.length > 0) && (
-            <SidebarGroup className="flex-1">
+            <SidebarGroup className="flex-1 min-h-0 overflow-y-auto scrollbar-hide">
               <SidebarGroupLabel>Chat History</SidebarGroupLabel>
               <SidebarGroupContent>
                 {!user ? (
