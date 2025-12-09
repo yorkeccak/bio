@@ -59,6 +59,8 @@ import { ChatInputForm } from "@/components/chat/components/chat-input-form";
 import { type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { UserMessage } from "@/components/chat/components/user-message";
 import { useChatSession } from "@/components/chat/hooks/use-chat-session";
+import { useSidebar } from "@/components/ui/sidebar";
+import { cn } from "@/lib/utils";
 
 export interface ChatInterfaceProps {
   sessionId?: string;
@@ -131,6 +133,7 @@ export function ChatInterface({
   const user = useAuthStore((state) => state.user);
   const subscription = useSubscription();
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const { isMobile: isSidebarMobile, state: sidebarState } = useSidebar();
 
   useEffect(() => {
     const handleShowAuthModal = () => setShowAuthModal(true);
@@ -576,11 +579,11 @@ export function ChatInterface({
   };
 
   const handleDeleteMessage = (messageId: string) => {
-    setMessages(messages.filter((message) => message.id !== messageId));
+    setMessages(messages.filter((message: BiomedUIMessage) => message.id !== messageId));
   };
 
   const handleEditMessage = (messageId: string) => {
-    const message = messages.find((m) => m.id === messageId);
+    const message = messages.find((m: BiomedUIMessage) => m.id === messageId);
     if (message && message.parts[0]?.type === "text") {
       setEditingMessageId(messageId);
       setEditingText(message.parts[0].text);
@@ -589,7 +592,7 @@ export function ChatInterface({
 
   const handleSaveEdit = (messageId: string) => {
     setMessages(
-      messages.map((message) =>
+      messages.map((message: BiomedUIMessage) =>
         message.id === messageId
           ? { ...message, parts: [{ type: "text" as const, text: editingText }] }
           : message
@@ -677,7 +680,7 @@ export function ChatInterface({
       },
     };
 
-    messages.filter(m => m.role === 'assistant').forEach(message => {
+    messages.filter((m: BiomedUIMessage) => m.role === 'assistant').forEach((message: BiomedUIMessage) => {
       let messageParts: any[] = [];
       if (Array.isArray((message as any).content)) {
         messageParts = (message as any).content;
@@ -1050,12 +1053,12 @@ export function ChatInterface({
           {(virtualizationEnabled
             ? deferredMessages
                 .slice(visibleRange.start, visibleRange.end)
-                .map((message, i) => ({
+                .map((message: BiomedUIMessage, i: number) => ({
                   item: message,
                   realIndex: visibleRange.start + i,
                 }))
-            : displayMessages.map((m, i) => ({ item: m, realIndex: i }))
-          ).map(({ item: message, realIndex }) => (
+            : displayMessages.map((m: BiomedUIMessage, i: number) => ({ item: m, realIndex: i }))
+          ).map(({ item: message, realIndex }: { item: BiomedUIMessage; realIndex: number }) => (
             <motion.div
               key={message.id}
               className="group"
@@ -1279,7 +1282,7 @@ export function ChatInterface({
       </div>
 
       {/* Gradient fade above input form */}
-      <AnimatePresence>
+      {/* <AnimatePresence>
         {(isFormAtBottom || isMobile) && (
           <motion.div
             className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl h-36 pointer-events-none z-45"
@@ -1293,7 +1296,7 @@ export function ChatInterface({
             />
           </motion.div>
         )}
-      </AnimatePresence>
+      </AnimatePresence> */}
 
       {/* Error Display */}
       {error && (
@@ -1342,7 +1345,12 @@ export function ChatInterface({
       <AnimatePresence>
         {(isFormAtBottom || isMobile) && (
           <motion.div
-            className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl px-3 sm:px-6 pt-4 pb-5 sm:pb-6 z-50"
+            className={cn(
+              "fixed bottom-0 w-full max-w-3xl px-3 sm:px-6 pt-4 pb-5 sm:pb-6 z-50 -translate-x-1/2 transition-[left] duration-200 ease-linear",
+              isSidebarMobile || sidebarState === "collapsed"
+                ? "left-1/2"
+                : "left-[calc(50%+var(--sidebar-width)/2)]"
+            )}
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: 20 }}
