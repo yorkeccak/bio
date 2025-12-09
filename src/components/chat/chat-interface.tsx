@@ -1282,21 +1282,26 @@ export function ChatInterface({
       </div>
 
       {/* Gradient fade above input form */}
-      {/* <AnimatePresence>
+      <AnimatePresence>
         {(isFormAtBottom || isMobile) && (
           <motion.div
-            className="fixed left-1/2 -translate-x-1/2 bottom-0 w-full max-w-3xl h-36 pointer-events-none z-45"
+            className={cn(
+              "fixed bottom-0 w-full max-w-3xl h-36 pointer-events-none z-45 -translate-x-1/2 transition-[left] duration-200 ease-linear",
+              isSidebarMobile || sidebarState === "collapsed"
+                ? "left-1/2"
+                : "left-[calc(50%+var(--sidebar-width)/2)]"
+            )}
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.3, ease: "easeOut" }}
           >
             <div
-              className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"
+              className="absolute inset-0 bg-gradient-to-t from-[#F5F5F5] via-[#F5F5F5]/80 to-transparent dark:from-gray-950 dark:via-gray-950/80"
             />
           </motion.div>
         )}
-      </AnimatePresence> */}
+      </AnimatePresence>
 
       {/* Error Display */}
       {error && (
