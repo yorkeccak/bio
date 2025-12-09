@@ -16,7 +16,6 @@ import {
 } from "ai";
 import { BiomedUIMessage } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { useAuthStore } from "@/lib/stores/use-auth-store";
 import { useSubscription } from "@/hooks/use-subscription";
 import { createClient } from '@/utils/supabase/client-wrapper';
@@ -26,11 +25,7 @@ import { RateLimitBanner } from '@/components/rate-limit-banner';
 import { useSearchParams } from "next/navigation";
 import {
   RotateCcw,
-  Square,
-  Trash2,
   AlertCircle,
-  Loader2,
-  Edit3,
   Wrench,
   Check,
   Copy,
@@ -44,11 +39,9 @@ import {
   BarChart3,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { BiomedicalChart } from "@/components/financial-chart";
 import { CSVPreview } from "@/components/csv-preview";
 import { Favicon } from "@/components/favicon";
 import { calculateMessageMetrics, MessageMetrics } from "@/lib/metrics-calculator";
-import { MetricsPills } from "@/components/metrics-pills";
 
 // Import extracted components
 import { groupMessageParts } from "@/components/chat/utils/group-message-parts";
@@ -63,9 +56,9 @@ import { LoadingIndicator } from "@/components/chat/components/loading-indicator
 import { SearchResultsCarousel } from "@/components/chat/components/search-results-carousel";
 import { EmptyState } from "@/components/chat/components/empty-state";
 import { ChatInputForm } from "@/components/chat/components/chat-input-form";
+import { type PromptInputMessage } from "@/components/ai-elements/prompt-input";
 import { UserMessage } from "@/components/chat/components/user-message";
 import { useChatSession } from "@/components/chat/hooks/use-chat-session";
-import DataSourceLogos from "@/components/data-source-logos";
 
 export interface ChatInterfaceProps {
   sessionId?: string;
@@ -499,24 +492,23 @@ export function ChatInterface({
   }, [status]);
 
   // Form handlers
-  const handleSubmit = async (e: React.FormEvent, skipSignupPrompt = false) => {
-    e.preventDefault();
-    if (input.trim() && status === "ready") {
+  const handlePromptSubmit = async (message: PromptInputMessage) => {
+    if (message.text.trim() && status === "ready") {
       if (!canSendQuery) {
         setIsRateLimited(true);
         onRateLimitError?.(resetTime?.toISOString() || new Date().toISOString());
         return;
       }
 
-      const queryText = input.trim();
+      const queryText = message.text.trim();
       setIsSubmitting(true);
-      setInput("");
 
       track('User Query Submitted', {
         query: queryText,
         queryLength: queryText.length,
         messageCount: messages.length,
-        remainingQueries: remaining ? remaining - 1 : 0
+        remainingQueries: remaining ? remaining - 1 : 0,
+        hasAttachments: message.files.length > 0,
       });
 
       updateUrlWithQuery(queryText);
@@ -541,7 +533,28 @@ export function ChatInterface({
         } catch (error) {}
       }
 
-      sendMessage({ text: queryText });
+      // Build message parts with text and attachments
+      const messageParts: any[] = [{ type: "text", text: queryText }];
+
+      // Add file attachments as file parts
+      for (const file of message.files) {
+        if (file.mediaType?.startsWith("image/") && file.url) {
+          messageParts.push({
+            type: "image",
+            image: file.url,
+            mediaType: file.mediaType,
+          });
+        } else if (file.url) {
+          messageParts.push({
+            type: "file",
+            url: file.url,
+            mediaType: file.mediaType,
+            filename: file.filename,
+          });
+        }
+      }
+
+      sendMessage({ text: queryText, files: message.files });
 
       if (user) {
         rateLimitMutation.mutate();
@@ -1018,14 +1031,14 @@ export function ChatInterface({
                 <ChatInputForm
                   input={input}
                   onInputChange={handleInputChange}
-                  onSubmit={handleSubmit}
+                  onSubmit={handlePromptSubmit}
                   isLoading={isLoading}
                   canStop={canStop}
                   onStop={handleStop}
                   disabled={status === "error"}
+                  className="w-full max-w-3xl mx-auto"
                   metrics={cumulativeMetrics}
                   showMetrics={messages.length > 0}
-                  variant="inline"
                 />
               </motion.div>
             )}
@@ -1338,14 +1351,14 @@ export function ChatInterface({
             <ChatInputForm
               input={input}
               onInputChange={handleInputChange}
-              onSubmit={handleSubmit}
+              onSubmit={handlePromptSubmit}
               isLoading={isLoading}
               canStop={canStop}
               onStop={handleStop}
               disabled={status === "error"}
+              className="w-full"
               metrics={cumulativeMetrics}
               showMetrics={messages.length > 0}
-              variant="inline"
             />
           </motion.div>
         )}
