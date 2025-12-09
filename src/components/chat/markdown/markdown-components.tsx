@@ -20,7 +20,7 @@ export const markdownComponents = {
       // Check if it starts with / (valid relative path for Next.js)
       if (!src.startsWith('/') && !src.startsWith('csv:') && !src.match(/^\/api\/(charts|csvs)\//)) {
         return (
-          <span className="text-xs text-gray-500 italic">
+          <span className="text-xs text-muted-foreground italic">
             [Image: {alt || src}]
           </span>
         );
@@ -55,7 +55,7 @@ export const markdownComponents = {
       );
     } catch (error) {
       return (
-        <code className="math-fallback bg-gray-100 px-1 rounded">
+        <code className="math-fallback bg-muted px-1 rounded">
           {mathContent}
         </code>
       );
@@ -63,15 +63,15 @@ export const markdownComponents = {
   },
   // Handle academic XML tags commonly found in Wiley content
   note: ({ children }: any) => (
-    <div className="bg-blue-50 dark:bg-blue-900/20 border-l-4 border-blue-400 pl-4 py-2 my-2 text-sm">
+    <div className="bg-info/10 border-l-4 border-info pl-4 py-2 my-2 text-sm">
       <div className="flex items-start gap-2">
-        <span className="text-blue-600 dark:text-blue-400 font-medium">Note:</span>
+        <span className="text-info font-medium">Note:</span>
         <div>{children}</div>
       </div>
     </div>
   ),
   t: ({ children }: any) => (
-    <span className="font-mono text-sm bg-gray-100 dark:bg-gray-800 px-1 rounded">
+    <span className="font-mono text-sm bg-muted px-1 rounded">
       {children}
     </span>
   ),
@@ -80,17 +80,17 @@ export const markdownComponents = {
   ),
   // Handle other common academic tags
   ref: ({ children }: any) => (
-    <span className="text-blue-600 dark:text-blue-400 text-sm">
+    <span className="text-info text-sm">
       [{children}]
     </span>
   ),
   caption: ({ children }: any) => (
-    <div className="text-sm text-gray-600 dark:text-gray-400 italic text-center my-2">
+    <div className="text-sm text-muted-foreground italic text-center my-2">
       {children}
     </div>
   ),
   figure: ({ children }: any) => (
-    <div className="my-4 p-2 border border-gray-200 dark:border-gray-700 rounded">
+    <div className="my-4 p-2 border border-border rounded">
       {children}
     </div>
   ),

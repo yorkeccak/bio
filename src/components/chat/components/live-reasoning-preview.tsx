@@ -19,10 +19,10 @@ export const LiveReasoningPreview = memo(({ title, lines }: { title: string; lin
       transition={{ duration: 0.12, ease: 'easeOut' }}
       className="my-1 ml-3 sm:ml-8 mr-3 sm:mr-0"
     >
-      <div className="bg-blue-50/50 dark:bg-blue-950/20 border-l-2 border-blue-300 dark:border-blue-700 rounded-r px-2 sm:px-2.5 py-1.5 space-y-1 overflow-hidden max-w-full">
+      <div className="bg-info/5 border-l-2 border-info/30 rounded-r px-2 sm:px-2.5 py-1.5 space-y-1 overflow-hidden max-w-full">
         {/* Show the latest **title** */}
         {title && (
-          <div className="text-xs font-semibold text-blue-700 dark:text-blue-300 truncate">
+          <div className="text-xs font-semibold text-info-foreground truncate">
             {title}
           </div>
         )}
@@ -36,7 +36,7 @@ export const LiveReasoningPreview = memo(({ title, lines }: { title: string; lin
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -5 }}
               transition={{ duration: 0.08 }}
-              className="text-xs text-gray-500 dark:text-gray-400 leading-snug truncate max-w-full"
+              className="text-xs text-muted-foreground leading-snug truncate max-w-full"
             >
               {line}
             </motion.div>

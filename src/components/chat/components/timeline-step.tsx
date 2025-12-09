@@ -49,36 +49,36 @@ export const TimelineStep = memo(({
       {/* Minimal, refined design */}
       <div
         className={`relative flex items-start gap-4 py-4 px-3 sm:px-4 -mx-1 sm:-mx-2 rounded-md transition-all duration-150 ${
-          isStreaming ? 'bg-blue-50/50 dark:bg-blue-950/10' : ''
+          isStreaming ? 'bg-info/5' : ''
         } ${
-          hasContent ? 'hover:bg-gray-50 dark:hover:bg-white/[0.02] cursor-pointer' : ''
+          hasContent ? 'hover:bg-muted/50 cursor-pointer' : ''
         }`}
         onClick={hasContent ? toggleExpand : undefined}
       >
         {/* Minimal status indicator */}
         <div className="flex-shrink-0">
           {isComplete ? (
-            <div className="w-4 h-4 rounded-full bg-emerald-500/15 dark:bg-emerald-500/25 flex items-center justify-center">
-              <Check className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-500 stroke-[2.5]" />
+            <div className="w-4 h-4 rounded-full bg-success/15 flex items-center justify-center">
+              <Check className="w-2.5 h-2.5 text-success stroke-[2.5]" />
             </div>
           ) : isStreaming ? (
             <div className="relative w-4 h-4">
-              <div className="absolute inset-0 rounded-full border border-blue-300/40 dark:border-blue-700/40" />
-              <div className="absolute inset-0 rounded-full border border-transparent border-t-blue-500 dark:border-t-blue-400 animate-spin" />
+              <div className="absolute inset-0 rounded-full border border-info/40" />
+              <div className="absolute inset-0 rounded-full border border-transparent border-t-info animate-spin" />
             </div>
           ) : isError ? (
-            <div className="w-4 h-4 rounded-full bg-red-500/15 dark:bg-red-500/25 flex items-center justify-center">
-              <AlertCircle className="w-2.5 h-2.5 text-red-600 dark:text-red-500" />
+            <div className="w-4 h-4 rounded-full bg-destructive/15 flex items-center justify-center">
+              <AlertCircle className="w-2.5 h-2.5 text-destructive" />
             </div>
           ) : (
-            <div className="w-4 h-4 rounded-full border border-gray-300 dark:border-gray-700" />
+            <div className="w-4 h-4 rounded-full border border-border" />
           )}
         </div>
 
         {/* Clean icon */}
         {icon && (
           <div className={`flex-shrink-0 w-4 h-4 ${
-            isStreaming ? 'text-blue-600 dark:text-blue-400' : 'text-gray-500 dark:text-gray-500'
+            isStreaming ? 'text-info' : 'text-muted-foreground'
           }`}>
             {icon}
           </div>
@@ -87,12 +87,12 @@ export const TimelineStep = memo(({
         {/* Clean typography */}
         <div className="flex-1 min-w-0">
           <div className="flex items-baseline gap-2">
-            <span className="text-sm font-medium text-gray-900 dark:text-gray-100">
+            <span className="text-sm font-medium text-foreground">
               {title}
             </span>
           </div>
           {subtitle && !isExpanded && (
-            <div className="text-xs text-gray-500 dark:text-gray-500 line-clamp-1 mt-0.5">
+            <div className="text-xs text-muted-foreground line-clamp-1 mt-0.5">
               {subtitle}
             </div>
           )}
@@ -100,7 +100,7 @@ export const TimelineStep = memo(({
 
         {/* Minimal chevron */}
         {hasContent && !isStreaming && (
-          <ChevronDown className={`h-3.5 w-3.5 text-gray-400 dark:text-gray-600 flex-shrink-0 transition-transform duration-150 ${
+          <ChevronDown className={`h-3.5 w-3.5 text-muted-foreground flex-shrink-0 transition-transform duration-150 ${
             isExpanded ? 'rotate-180' : ''
           }`} />
         )}
@@ -110,7 +110,7 @@ export const TimelineStep = memo(({
       {isExpanded && hasContent && (
         <div className="mt-1.5 ml-6 mr-2 animate-in fade-in duration-150">
           {children || (
-            <div className="text-sm leading-relaxed text-gray-700 dark:text-gray-300 bg-gray-50/50 dark:bg-white/[0.02] rounded-lg px-3 py-2.5 border-l-2 border-gray-200 dark:border-gray-800">
+            <div className="text-sm leading-relaxed text-foreground/80 bg-muted/50 rounded-lg px-3 py-2.5 border-l-2 border-border">
               <ReactMarkdown remarkPlugins={[remarkGfm]} rehypePlugins={[rehypeRaw]}>
                 {part.text || ''}
               </ReactMarkdown>

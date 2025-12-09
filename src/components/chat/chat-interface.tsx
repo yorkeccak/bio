@@ -816,20 +816,20 @@ export function ChatInterface({
           const displayResults = results.slice(0, 5);
           subtitleContent = (
             <div className="flex flex-col gap-1">
-              <div className="text-xs text-gray-600 dark:text-gray-400">{query}</div>
+              <div className="text-xs text-muted-foreground">{query}</div>
               <div className="flex items-center gap-2">
                 <div className="flex -space-x-2">
                   {displayResults.map((result: any, idx: number) => (
                     <div
                       key={idx}
-                      className="w-5 h-5 rounded-full bg-white dark:bg-gray-900 border border-gray-300 dark:border-gray-700 flex items-center justify-center overflow-hidden"
+                      className="w-5 h-5 rounded-full bg-background border border-border flex items-center justify-center overflow-hidden"
                       style={{ zIndex: 5 - idx }}
                     >
                       <Favicon url={result.url} size={12} className="w-3 h-3" />
                     </div>
                   ))}
                 </div>
-                <span className="text-xs text-gray-600 dark:text-gray-400">
+                <span className="text-xs text-muted-foreground">
                   {results.length} results
                 </span>
               </div>
@@ -965,24 +965,24 @@ export function ChatInterface({
 
       case "dynamic-tool":
         return (
-          <div key={index} className="mt-2 bg-purple-50 dark:bg-purple-900/20 border border-purple-200 dark:border-purple-800 rounded p-2 sm:p-3">
-            <div className="flex items-center gap-2 text-purple-700 dark:text-purple-400 mb-2">
+          <div key={index} className="mt-2 bg-info/10 border border-info/20 rounded p-2 sm:p-3">
+            <div className="flex items-center gap-2 text-info-foreground mb-2">
               <Wrench className="h-4 w-4" />
               <span className="font-medium">Tool: {part.toolName}</span>
             </div>
-            <div className="text-sm text-purple-600 dark:text-purple-300">
+            <div className="text-sm text-info-foreground/80">
               {part.state === "input-streaming" && (
-                <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
+                <pre className="bg-info/5 p-2 rounded text-xs">
                   {JSON.stringify(part.input, null, 2)}
                 </pre>
               )}
               {part.state === "output-available" && (
-                <pre className="bg-purple-100 dark:bg-purple-800/30 p-2 rounded text-xs">
+                <pre className="bg-info/5 p-2 rounded text-xs">
                   {JSON.stringify(part.output, null, 2)}
                 </pre>
               )}
               {part.state === "output-error" && (
-                <div className="text-red-600 dark:text-red-300">
+                <div className="text-destructive">
                   Error: {part.errorText}
                 </div>
               )}
@@ -1006,7 +1006,6 @@ export function ChatInterface({
       >
         {messages.length === 0 && (
           <>
-            <EmptyState onPromptClick={handlePromptClick} />
 
             {/* Input Form when not at bottom (desktop only) */}
             {!isFormAtBottom && !isMobile && (
@@ -1030,6 +1029,7 @@ export function ChatInterface({
                 />
               </motion.div>
             )}
+            <EmptyState onPromptClick={handlePromptClick} />
           </>
         )}
 
@@ -1131,15 +1131,15 @@ export function ChatInterface({
                             {hasActivity && (
                               <button
                                 onClick={() => setIsTraceExpanded(!isTraceExpanded)}
-                                className="w-full flex items-start gap-4 px-4 py-4 bg-gradient-to-br from-gray-50 to-gray-100/50 dark:from-gray-800/50 dark:to-gray-900/30 rounded-xl border border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600 hover:shadow-sm transition-all mb-4 text-left group"
+                                className="w-full flex items-start gap-4 px-4 py-4 bg-gradient-to-br from-muted/50 to-muted/30 rounded-xl border border-border hover:border-border/80 hover:shadow-sm transition-all mb-4 text-left group"
                               >
                                 <div className="flex-shrink-0 mt-0.5">
                                   {messageIsComplete ? (
-                                    <div className="w-10 h-10 rounded-lg bg-emerald-500/10 dark:bg-emerald-500/20 flex items-center justify-center">
-                                      <Check className="h-5 w-5 text-emerald-600 dark:text-emerald-500" />
+                                    <div className="w-10 h-10 rounded-lg bg-success/10 flex items-center justify-center">
+                                      <Check className="h-5 w-5 text-success" />
                                     </div>
                                   ) : (
-                                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 dark:bg-blue-500/20 flex items-center justify-center">
+                                    <div className="w-10 h-10 rounded-lg bg-info/10 flex items-center justify-center">
                                       {latestStepIcon}
                                     </div>
                                   )}
@@ -1147,27 +1147,27 @@ export function ChatInterface({
                                 <div className="flex-1 min-w-0">
                                   {messageIsComplete ? (
                                     <>
-                                      <div className="text-sm font-semibold text-gray-900 dark:text-gray-100 mb-1">Completed</div>
-                                      <div className="text-sm text-gray-600 dark:text-gray-400">
+                                      <div className="text-sm font-semibold text-foreground mb-1">Completed</div>
+                                      <div className="text-sm text-muted-foreground">
                                         Performed {totalActions} {totalActions === 1 ? 'action' : 'actions'}
                                       </div>
                                     </>
                                   ) : (
                                     <>
                                       <div className="flex items-center gap-2 mb-1">
-                                        <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">
+                                        <div className="text-sm font-semibold text-foreground">
                                           {latestStepTitle || "Working..."}
                                         </div>
                                         <div className="flex items-center gap-1">
-                                          <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" />
-                                          <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
-                                          <div className="w-1 h-1 bg-blue-500 rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
+                                          <div className="w-1 h-1 bg-info rounded-full animate-pulse" />
+                                          <div className="w-1 h-1 bg-info rounded-full animate-pulse" style={{ animationDelay: '0.2s' }} />
+                                          <div className="w-1 h-1 bg-info rounded-full animate-pulse" style={{ animationDelay: '0.4s' }} />
                                         </div>
                                       </div>
                                     </>
                                   )}
                                 </div>
-                                <div className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-500 group-hover:text-gray-700 dark:group-hover:text-gray-300 transition-colors mt-1">
+                                <div className="flex-shrink-0 flex items-center gap-1.5 text-xs font-medium text-muted-foreground group-hover:text-foreground transition-colors mt-1">
                                   <span className="hidden sm:inline">{isTraceExpanded ? 'Hide' : 'Show'}</span>
                                   <ChevronDown className={`h-4 w-4 transition-transform ${isTraceExpanded ? 'rotate-180' : ''}`} />
                                 </div>
@@ -1228,10 +1228,10 @@ export function ChatInterface({
 
                   {/* Message Actions */}
                   {message.role === "assistant" && !isLoading && (
-                    <div className="flex justify-end gap-2 mt-6 pt-4 mb-8 border-t border-gray-100 dark:border-gray-800">
+                    <div className="flex justify-end gap-2 mt-6 pt-4 mb-8 border-t border-border">
                       <button
                         onClick={() => copyToClipboard(getMessageText(message))}
-                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-800/50 rounded-lg transition-all"
+                        className="inline-flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition-all"
                         title="Copy to clipboard"
                       >
                         <Copy className="h-3.5 w-3.5" />
@@ -1276,16 +1276,7 @@ export function ChatInterface({
             transition={{ duration: 0.3, ease: "easeOut" }}
           >
             <div
-              className="dark:hidden absolute inset-0"
-              style={{
-                background: "linear-gradient(to top, rgb(245,245,245) 0%, rgba(245,245,245,0.98) 30%, rgba(245,245,245,0.8) 60%, rgba(245,245,245,0) 100%)",
-              }}
-            />
-            <div
-              className="hidden dark:block absolute inset-0"
-              style={{
-                background: "linear-gradient(to top, rgb(3 7 18) 0%, rgb(3 7 18 / 0.98) 30%, rgb(3 7 18 / 0.8) 60%, transparent 100%)",
-              }}
+              className="absolute inset-0 bg-gradient-to-t from-background via-background/80 to-transparent"
             />
           </motion.div>
         )}
@@ -1293,14 +1284,14 @@ export function ChatInterface({
 
       {/* Error Display */}
       {error && (
-        <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3 sm:p-4">
-          <div className="flex items-center gap-2 text-red-700 dark:text-red-400">
+        <div className="bg-destructive/10 border border-destructive/20 rounded-lg p-3 sm:p-4">
+          <div className="flex items-center gap-2 text-destructive">
             <AlertCircle className="h-4 w-4" />
             <span className="font-medium">
               {error.message?.includes('PAYMENT_REQUIRED') ? 'Payment Setup Required' : 'Something went wrong'}
             </span>
           </div>
-          <p className="text-red-600 dark:text-red-400 text-sm mt-1">
+          <p className="text-destructive/80 text-sm mt-1">
             {error.message?.includes('PAYMENT_REQUIRED')
               ? 'You need to set up a payment method to use the pay-per-use plan. You only pay for what you use.'
               : 'Please check your API keys and try again.'
@@ -1317,7 +1308,7 @@ export function ChatInterface({
             }}
             variant="outline"
             size="sm"
-            className="mt-2 text-red-700 border-red-300 hover:bg-red-100 dark:text-red-400 dark:border-red-700 dark:hover:bg-red-900/20"
+            className="mt-2 text-destructive border-destructive/30 hover:bg-destructive/10"
           >
             {error.message?.includes('PAYMENT_REQUIRED') ? (
               <>
@@ -1354,7 +1345,7 @@ export function ChatInterface({
               disabled={status === "error"}
               metrics={cumulativeMetrics}
               showMetrics={messages.length > 0}
-              variant="fixed"
+              variant="inline"
             />
           </motion.div>
         )}

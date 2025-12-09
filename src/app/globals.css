@@ -26,6 +26,13 @@
   --color-input: var(--input);
   --color-border: var(--border);
   --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
   --color-accent-foreground: var(--accent-foreground);
   --color-accent: var(--accent);
   --color-muted-foreground: var(--muted-foreground);
@@ -61,6 +68,13 @@
   --accent: oklch(0.97 0 0);
   --accent-foreground: oklch(0.205 0 0);
   --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.72 0.19 145);
+  --success-foreground: oklch(0.25 0.05 145);
+  --warning: oklch(0.8 0.15 75);
+  --warning-foreground: oklch(0.35 0.1 75);
+  --info: oklch(0.7 0.15 250);
+  --info-foreground: oklch(0.25 0.1 250);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
@@ -95,6 +109,13 @@
   --accent: oklch(0.269 0 0);
   --accent-foreground: oklch(0.985 0 0);
   --destructive: oklch(0.704 0.191 22.216);
+  --destructive-foreground: oklch(0.985 0 0);
+  --success: oklch(0.65 0.19 145);
+  --success-foreground: oklch(0.95 0.02 145);
+  --warning: oklch(0.7 0.15 75);
+  --warning-foreground: oklch(0.95 0.02 75);
+  --info: oklch(0.6 0.15 250);
+  --info-foreground: oklch(0.95 0.02 250);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
@@ -162,19 +183,19 @@
 
 /* Dark mode support for KaTeX */
 .dark .katex {
-  color: rgb(229, 231, 235) !important; /* text-gray-200 */
+  color: var(--foreground) !important;
 }
 
 .dark .katex .mord {
-  color: rgb(229, 231, 235) !important;
+  color: var(--foreground) !important;
 }
 
 .dark .katex .mbin, .dark .katex .mrel, .dark .katex .mop {
-  color: rgb(156, 163, 175) !important; /* text-gray-400 */
+  color: var(--muted-foreground) !important;
 }
 
 .dark .katex .mfrac > span {
-  border-color: rgb(156, 163, 175) !important;
+  border-color: var(--muted-foreground) !important;
 }
 
 /* Improve readability in prose blocks */
@@ -183,23 +204,9 @@
 }
 
 .prose .katex-display {
-  background: rgba(0, 0, 0, 0.02);
+  background: oklch(from var(--muted) l c h / 50%);
   padding: 0.5rem;
-  border-radius: 0.375rem;
-  border: 1px solid rgba(0, 0, 0, 0.1);
-}
-
-.dark .prose .katex-display {
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.1);
-}
-
-@layer base {
-  * {
-    @apply border-border outline-ring/50;
-  }
-  body {
-    @apply bg-background text-foreground;
-  }
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
 }
 

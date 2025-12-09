@@ -25,7 +25,7 @@ import {
 
 const JsonView = dynamic(() => import("@uiw/react-json-view"), {
   ssr: false,
-  loading: () => <div className="text-xs text-gray-500">Loading JSON…</div>,
+  loading: () => <div className="text-xs text-muted-foreground">Loading JSON…</div>,
 });
 
 // Search Result Card Component
@@ -76,19 +76,19 @@ export const SearchResultCard = ({
               {/* Favicon on left */}
               <div className="flex-shrink-0 pt-0.5">
                 {type === "literature" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <BookOpen className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : type === "drug" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <Search className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <Search className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : type === "clinical" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <Search className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
                     <Favicon
                       url={result.url}
                       size={12}
@@ -102,16 +102,16 @@ export const SearchResultCard = ({
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 {/* Title and external link */}
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 text-gray-900 dark:text-gray-100">
+                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 text-foreground">
                     {result.title}
                   </h4>
-                  <ExternalLink className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" />
+                  <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
                 </div>
 
                 {/* Markdown preview with separator */}
                 <div className="flex flex-col gap-1">
-                  <div className="h-px bg-gray-200 dark:bg-gray-800" />
-                  <div className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-snug">
+                  <div className="h-px bg-border" />
+                  <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
                     {result.summary?.slice(0, 120) || ''}
                   </div>
                 </div>
@@ -121,13 +121,13 @@ export const SearchResultCard = ({
                   <span
                     className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                       result.isStructured
-                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                        ? "bg-info/10 text-info-foreground"
+                        : "bg-success/10 text-success-foreground"
                     }`}
                   >
                     {result.dataType}
                   </span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
+                  <span className="text-[10px] text-muted-foreground truncate">
                     {(() => {
                       try {
                         const url = new URL(result.url);
@@ -163,19 +163,19 @@ export const SearchResultCard = ({
               {/* Favicon on left */}
               <div className="flex-shrink-0 pt-0.5">
                 {type === "literature" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <BookOpen className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <BookOpen className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : type === "drug" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <Search className="w-3.5 h-3.5 text-purple-600 dark:text-purple-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <Search className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : type === "clinical" ? (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
-                    <Search className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
+                    <Search className="w-3.5 h-3.5 text-info" />
                   </div>
                 ) : (
-                  <div className="w-5 h-5 rounded bg-gray-100 dark:bg-gray-800 flex items-center justify-center overflow-hidden">
+                  <div className="w-5 h-5 rounded bg-muted flex items-center justify-center overflow-hidden">
                     <Favicon
                       url={result.url}
                       size={12}
@@ -189,16 +189,16 @@ export const SearchResultCard = ({
               <div className="flex-1 min-w-0 flex flex-col gap-1.5">
                 {/* Title and external link */}
                 <div className="flex items-start justify-between gap-2">
-                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 text-gray-900 dark:text-gray-100">
+                  <h4 className="font-semibold text-sm leading-tight line-clamp-2 text-foreground">
                     {result.title}
                   </h4>
-                  <ExternalLink className="h-3 w-3 text-gray-400 flex-shrink-0 mt-0.5" />
+                  <ExternalLink className="h-3 w-3 text-muted-foreground flex-shrink-0 mt-0.5" />
                 </div>
 
                 {/* Markdown preview with separator */}
                 <div className="flex flex-col gap-1">
-                  <div className="h-px bg-gray-200 dark:bg-gray-800" />
-                  <div className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 leading-snug">
+                  <div className="h-px bg-border" />
+                  <div className="text-xs text-muted-foreground line-clamp-2 leading-snug">
                     {result.summary?.slice(0, 120) || ''}
                   </div>
                 </div>
@@ -208,13 +208,13 @@ export const SearchResultCard = ({
                   <span
                     className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
                       result.isStructured
-                        ? "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
-                        : "bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300"
+                        ? "bg-info/10 text-info-foreground"
+                        : "bg-success/10 text-success-foreground"
                     }`}
                   >
                     {result.dataType}
                   </span>
-                  <span className="text-[10px] text-gray-500 dark:text-gray-500 truncate">
+                  <span className="text-[10px] text-muted-foreground truncate">
                     {(() => {
                       try {
                         const urlObj = new URL(result.url);
@@ -235,16 +235,16 @@ export const SearchResultCard = ({
         <DialogHeader>
           <DialogTitle className=" pr-8">{result.title}</DialogTitle>
           <Separator />
-          <div className="text-sm text-gray-600 dark:text-gray-400 space-y-2">
+          <div className="text-sm text-muted-foreground space-y-2">
             <div className="flex items-center gap-2 flex-wrap">
               {result.date && <span>• {result.date}</span>}
               {result.relevanceScore && (
-                <span className="text-xs bg-gray-100 dark:bg-gray-800 px-2 py-1 rounded">
+                <span className="text-xs bg-muted px-2 py-1 rounded">
                   {(result.relevanceScore * 100).toFixed(0)}% relevance
                 </span>
               )}
               {type === "literature" && result.doi && (
-                <span className="text-xs bg-indigo-100 dark:bg-indigo-800/30 text-indigo-700 dark:text-indigo-300 px-2 py-1 rounded">
+                <span className="text-xs bg-info/10 text-info-foreground px-2 py-1 rounded">
                   DOI: {result.doi}
                 </span>
               )}
@@ -253,12 +253,12 @@ export const SearchResultCard = ({
             {type === "literature" && (result.authors || result.citation) && (
               <div className="space-y-1">
                 {result.authors && result.authors.length > 0 && (
-                  <div className="text-xs text-gray-600 dark:text-gray-400">
+                  <div className="text-xs text-muted-foreground">
                     <span className="font-medium">Authors:</span> {result.authors.join(", ")}
                   </div>
                 )}
                 {result.citation && (
-                  <div className="text-xs text-gray-600 dark:text-gray-400 font-mono bg-gray-50 dark:bg-gray-800 p-1 rounded">
+                  <div className="text-xs text-muted-foreground font-mono bg-muted p-1 rounded">
                     {result.citation}
                   </div>
                 )}
@@ -270,7 +270,7 @@ export const SearchResultCard = ({
                 href={result.url}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-blue-600 hover:text-blue-800 dark:text-blue-400"
+                className="inline-flex items-center gap-1 text-info hover:text-info/80"
               >
                 <Favicon
                   url={result.url}
@@ -289,10 +289,10 @@ export const SearchResultCard = ({
             // Structured data - show as formatted JSON
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+                <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                   <FileText className="h-4 w-4" />
                   Structured Data
-                  <span className="text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-2 py-1 rounded">
+                  <span className="text-xs bg-info/10 text-info-foreground px-2 py-1 rounded">
                     {result.dataType}
                   </span>
                 </div>
@@ -306,13 +306,13 @@ export const SearchResultCard = ({
                         : result.fullContent;
                     copyToClipboard(jsonData);
                   }}
-                  className="h-8 px-3 text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-200"
+                  className="h-8 px-3 text-muted-foreground hover:text-foreground"
                 >
                   <Clipboard className="h-3 w-3 mr-1" />
                   Copy JSON
                 </Button>
               </div>
-              <div className="bg-gray-50 dark:bg-gray-900 border border-gray-200 dark:border-gray-700 rounded-lg overflow-hidden">
+              <div className="bg-muted border border-border rounded-lg overflow-hidden">
                 <JsonView
                   value={(() => {
                     try {
@@ -355,14 +355,14 @@ export const SearchResultCard = ({
           ) : (
             // Unstructured data - show as markdown
             <div className="space-y-4">
-              <div className="flex items-center gap-2 text-sm font-medium text-gray-700 dark:text-gray-300">
+              <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <FileText className="h-4 w-4" />
                 Content
-                <span className="text-xs bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-2 py-1 rounded">
+                <span className="text-xs bg-success/10 text-success-foreground px-2 py-1 rounded">
                   {result.dataType}
                 </span>
                 {result.length && (
-                  <span className="text-xs text-gray-500">
+                  <span className="text-xs text-muted-foreground">
                     {result.length.toLocaleString()} chars
                   </span>
                 )}

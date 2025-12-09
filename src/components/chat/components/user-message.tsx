@@ -27,14 +27,14 @@ export const UserMessage = ({
 }: UserMessageProps) => {
   return (
     <div className="flex justify-end mb-4 sm:mb-6 px-3 sm:px-0">
-      <div className="max-w-[85%] sm:max-w-[80%] bg-gray-100 dark:bg-gray-800 rounded-2xl px-4 sm:px-4 py-3 sm:py-3 relative group shadow-sm">
+      <div className="max-w-[85%] sm:max-w-[80%] bg-muted rounded-2xl px-4 sm:px-4 py-3 sm:py-3 relative group shadow-sm">
         {/* User Message Actions */}
         <div className="absolute -left-8 sm:-left-10 top-2 opacity-0 group-hover:opacity-100 transition-opacity flex gap-0.5 sm:gap-1">
           <Button
             variant="ghost"
             size="sm"
             onClick={onEdit}
-            className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700"
+            className="h-6 w-6 p-0 bg-background rounded-full shadow-sm border border-border"
           >
             <Edit3 className="h-3 w-3" />
           </Button>
@@ -42,7 +42,7 @@ export const UserMessage = ({
             variant="ghost"
             size="sm"
             onClick={onDelete}
-            className="h-6 w-6 p-0 bg-white dark:bg-gray-900 rounded-full shadow-sm border border-gray-200 dark:border-gray-700 text-red-500 hover:text-red-700"
+            className="h-6 w-6 p-0 bg-background rounded-full shadow-sm border border-border text-destructive hover:text-destructive/80"
           >
             <Trash2 className="h-3 w-3" />
           </Button>
@@ -53,7 +53,7 @@ export const UserMessage = ({
             <Textarea
               value={editingText}
               onChange={(e) => onEditingTextChange(e.target.value)}
-              className="min-h-[80px] border-gray-200 dark:border-gray-600 rounded-xl"
+              className="min-h-[80px] border-border rounded-xl"
             />
             <div className="flex gap-2">
               <Button
@@ -75,7 +75,7 @@ export const UserMessage = ({
             </div>
           </div>
         ) : (
-          <div className="text-gray-900 dark:text-gray-100">
+          <div className="text-foreground">
             {message.parts.find((p: any) => p.type === "text")?.text}
           </div>
         )}
