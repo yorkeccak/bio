@@ -1346,7 +1346,7 @@ export function ChatInterface({
         {(isFormAtBottom || isMobile) && (
           <motion.div
             className={cn(
-              "fixed bottom-0 w-full max-w-3xl px-3 sm:px-6 pt-4 pb-5 sm:pb-6 z-50 -translate-x-1/2 transition-[left] duration-200 ease-linear",
+              "fixed bottom-0 w-full max-w-3xl px-2 sm:px-0 pt-4 pb-5 sm:pb-6 z-50 -translate-x-1/2 transition-[left] duration-200 ease-linear",
               isSidebarMobile || sidebarState === "collapsed"
                 ? "left-1/2"
                 : "left-[calc(50%+var(--sidebar-width)/2)]"
@@ -1364,7 +1364,7 @@ export function ChatInterface({
               canStop={canStop}
               onStop={handleStop}
               disabled={status === "error"}
-              className="w-full"
+              className="w-full max-w-3xl mx-auto"
               metrics={cumulativeMetrics}
               showMetrics={messages.length > 0}
             />
