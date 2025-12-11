@@ -438,3 +438,55 @@ export async function createCSV(csv: {
   const { error } = await supabase.from("csvs").insert(csv);
   return { error };
 }
+
+// ============================================================================
+// PROTEIN STRUCTURE FUNCTIONS
+// ============================================================================
+
+export async function getProteinStructure(structureId: string) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    const structure = await db.query.proteinStructures.findFirst({
+      where: eq(schema.proteinStructures.id, structureId),
+    });
+    return { data: structure || null, error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { data, error } = await supabase
+    .from("protein_structures")
+    .select("*")
+    .eq("id", structureId)
+    .single();
+  return { data, error };
+}
+
+export async function createProteinStructure(structure: {
+  id: string;
+  user_id?: string;
+  anonymous_id?: string;
+  session_id: string;
+  pdb_id: string;
+  protein_name: string;
+  search_score?: number;
+  metadata?: any;
+}) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    await db.insert(schema.proteinStructures).values({
+      id: structure.id,
+      userId: structure.user_id || null,
+      anonymousId: structure.anonymous_id || null,
+      sessionId: structure.session_id,
+      pdbId: structure.pdb_id,
+      proteinName: structure.protein_name,
+      searchScore: structure.search_score || null,
+      metadata: structure.metadata ? JSON.stringify(structure.metadata) : null,
+    });
+    return { error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase.from("protein_structures").insert(structure);
+  return { error };
+}

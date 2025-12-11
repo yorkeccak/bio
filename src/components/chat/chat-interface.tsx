@@ -37,6 +37,7 @@ import {
   Code2,
   Table,
   BarChart3,
+  Atom,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { CSVPreview } from "@/components/csv-preview";
@@ -49,6 +50,7 @@ import { extractSearchResults } from "@/components/chat/utils/extract-search-res
 import { MemoizedTextPartWithCitations } from "@/components/chat/markdown/text-with-citations";
 import { MemoizedChartResult } from "@/components/chat/tool-renderers/chart-result";
 import { MemoizedCodeExecutionResult } from "@/components/chat/tool-renderers/code-execution-result";
+import { MemoizedProteinViewerResult } from "@/components/chat/tool-renderers/protein-viewer-result";
 import { TimelineStep } from "@/components/chat/components/timeline-step";
 import { LiveReasoningPreview } from "@/components/chat/components/live-reasoning-preview";
 import { ReasoningComponent } from "@/components/chat/components/reasoning-component";
@@ -973,6 +975,72 @@ export function ChatInterface({
             >
               {hasOutput && !part.output?.error && (
                 <CSVPreview {...part.output} />
+              )}
+            </TimelineStep>
+          </div>
+        );
+      }
+
+      case "tool-proteinViewer": {
+        const callId = part.toolCallId;
+        const isStreaming = part.state === "input-streaming" || part.state === "input-available";
+        const hasOutput = part.state === "output-available";
+        const hasError = part.state === "output-error" || part.output?.error;
+
+        if (hasError) {
+          return (
+            <div key={callId}>
+              <TimelineStep
+                part={part}
+                messageId={message.id}
+                index={index}
+                status="error"
+                type="tool"
+                title="Protein Viewer Error"
+                subtitle={part.output?.message || part.errorText}
+                icon={<AlertCircle />}
+                expandedTools={expandedTools}
+                toggleToolExpansion={toggleToolExpansion}
+              />
+            </div>
+          );
+        }
+
+        const proteinName = hasOutput && part.output?.proteinName
+          ? part.output.proteinName
+          : part.input?.query || "Protein Structure";
+
+        const pdbId = hasOutput && part.output?.pdbId
+          ? part.output.pdbId.toUpperCase()
+          : "Loading...";
+
+        const subtitle = hasOutput && part.output?.searchScore
+          ? `PDB: ${pdbId} • Relevance: ${(part.output.searchScore * 100).toFixed(0)}%`
+          : isStreaming
+          ? "Searching protein database..."
+          : `PDB: ${pdbId}`;
+
+        return (
+          <div key={callId}>
+            <TimelineStep
+              part={part}
+              messageId={message.id}
+              index={index}
+              status={isStreaming ? "streaming" : "complete"}
+              type="tool"
+              title={proteinName}
+              subtitle={subtitle}
+              icon={<Atom />}
+              expandedTools={expandedTools}
+              toggleToolExpansion={toggleToolExpansion}
+            >
+              {hasOutput && !part.output?.error && (
+                <MemoizedProteinViewerResult
+                  pdbId={part.output.pdbId}
+                  proteinName={part.output.proteinName}
+                  searchScore={part.output.searchScore}
+                  structureId={part.output.structureId}
+                />
               )}
             </TimelineStep>
           </div>

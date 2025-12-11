@@ -89,6 +89,24 @@ export const csvs = sqliteTable("csvs", {
     .default(sql`(unixepoch())`),
 });
 
+// Protein structures table - mirrors Supabase protein_structures table
+export const proteinStructures = sqliteTable("protein_structures", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  anonymousId: text("anonymous_id"),
+  sessionId: text("session_id").notNull(),
+  pdbId: text("pdb_id").notNull(),
+  proteinName: text("protein_name").notNull(),
+  searchScore: real("search_score"),
+  metadata: text("metadata"), // JSON string of additional metadata
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -99,3 +117,5 @@ export type Chart = typeof charts.$inferSelect;
 export type InsertChart = typeof charts.$inferInsert;
 export type CSV = typeof csvs.$inferSelect;
 export type InsertCSV = typeof csvs.$inferInsert;
+export type ProteinStructure = typeof proteinStructures.$inferSelect;
+export type InsertProteinStructure = typeof proteinStructures.$inferInsert;

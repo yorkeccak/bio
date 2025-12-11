@@ -27,7 +27,10 @@
       "Bash(test:*)",
       "Bash(tree:*)",
       "WebFetch(domain:ai-elements.anthropic.com)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "WebFetch(domain:search.rcsb.org)",
+      "WebFetch(domain:www.ebi.ac.uk)",
+      "WebFetch(domain:github.com)"
     ],
     "deny": [],
     "ask": []

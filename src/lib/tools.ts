@@ -730,6 +730,154 @@ ${execution.result || '(No output produced)'}
       }
     },
   }),
+
+  proteinViewer: tool({
+    description: `Visualize 3D protein structures interactively in the chat.
+
+    USE CASES:
+    - Display protein structures by name (e.g., "hemoglobin", "insulin", "spike protein")
+    - Visualize enzyme active sites and binding pockets
+    - Show protein-ligand complexes
+    - Explore protein structures from scientific research
+
+    INPUT: Protein common name or 4-character PDB ID
+    - Protein names: "hemoglobin", "insulin", "SARS-CoV-2 spike protein"
+    - PDB IDs: "1cbs", "4hhb", "6lu7"
+
+    The tool searches the RCSB Protein Data Bank and displays the best matching structure
+    in an interactive 3D viewer where users can rotate, zoom, and explore the protein.`,
+    inputSchema: z.object({
+      query: z.string().describe('Protein name or 4-character PDB ID (e.g., "hemoglobin", "1cbs", "insulin")'),
+      maxResults: z.number().min(1).max(5).optional().default(1).describe('Number of structure matches to consider (default: 1)'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const userId = (options as any)?.experimental_context?.userId;
+      const sessionId = (options as any)?.experimental_context?.sessionId;
+
+      try {
+        const trimmedQuery = query.trim();
+
+        // Detect if query is a 4-character PDB ID (starts with digit, 3 alphanumeric chars)
+        const isPdbId = /^[0-9][a-z0-9]{3}$/i.test(trimmedQuery);
+
+        let pdbId: string;
+        let searchScore: number | undefined;
+        let totalMatches: number | undefined;
+
+        if (isPdbId) {
+          // Direct PDB ID - validate format and use it
+          pdbId = trimmedQuery.toLowerCase();
+          searchScore = 1.0;
+          totalMatches = 1;
+        } else {
+          // Protein name - search RCSB PDB API
+          const RCSB_SEARCH_API = 'https://search.rcsb.org/rcsbsearch/v2/query';
+
+          const searchQuery = {
+            return_type: "entry",
+            query: {
+              type: "terminal",
+              service: "full_text",
+              parameters: {
+                value: trimmedQuery
+              }
+            },
+            request_options: {
+              paginate: {
+                start: 0,
+                rows: maxResults || 1
+              },
+              sort: [{
+                sort_by: "score",
+                direction: "desc"
+              }]
+            }
+          };
+
+          const response = await fetch(RCSB_SEARCH_API, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(searchQuery),
+            signal: AbortSignal.timeout(10000)
+          });
+
+          if (!response.ok) {
+            return {
+              error: true,
+              message: `❌ Failed to search protein database: ${response.statusText}. Please try again or search at https://www.rcsb.org`
+            };
+          }
+
+          const data = await response.json();
+
+          if (!data.result_set || data.result_set.length === 0) {
+            return {
+              error: true,
+              message: `❌ No protein structures found for "${trimmedQuery}". Try:\n- A different protein name\n- A 4-character PDB ID (e.g., "1cbs")\n- Searching at https://www.rcsb.org`
+            };
+          }
+
+          // Use the top result (highest relevance score)
+          pdbId = data.result_set[0].identifier.toLowerCase();
+          searchScore = data.result_set[0].score;
+          totalMatches = data.total_count;
+        }
+
+        // Save to database
+        const structureId = randomUUID();
+        try {
+          const insertData: any = {
+            id: structureId,
+            session_id: sessionId || null,
+            pdb_id: pdbId,
+            protein_name: trimmedQuery,
+            search_score: searchScore,
+            metadata: {
+              source: 'RCSB PDB',
+              moleculeType: 'protein',
+              wasDirectPdbId: isPdbId,
+            },
+          };
+
+          if (userId) {
+            insertData.user_id = userId;
+          } else {
+            insertData.anonymous_id = 'anonymous';
+          }
+
+          await db.createProteinStructure(insertData);
+        } catch (error) {
+          console.error('[proteinViewer] Error saving structure:', error);
+        }
+
+        // Track analytics
+        await track('Protein Viewer Created', {
+          query: trimmedQuery,
+          pdbId: pdbId,
+          wasDirectPdbId: isPdbId,
+          searchResultCount: totalMatches || 1,
+          searchScore: searchScore,
+        });
+
+        return {
+          pdbId,
+          proteinName: trimmedQuery,
+          searchScore,
+          structureId,
+          totalMatches,
+          rcsb_url: `https://www.rcsb.org/structure/${pdbId.toUpperCase()}`,
+          pdbe_url: `https://www.ebi.ac.uk/pdbe/entry/pdb/${pdbId.toLowerCase()}`,
+        };
+
+      } catch (error: any) {
+        console.error('[proteinViewer] Error:', error);
+        return {
+          error: true,
+          message: `❌ Error loading protein structure: ${error.message || 'Unknown error occurred'}. Please try again.`
+        };
+      }
+    },
+  }),
 };
 
 // Export with both names for compatibility
