@@ -2,6 +2,8 @@ import { streamText, convertToModelMessages } from "ai";
 import { healthcareTools } from "@/lib/tools";
 import { BiomedUIMessage } from "@/lib/types";
 import { openai, createOpenAI } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { getModelProvider, getModelConfig, getProviderOptions, getModelInfoString } from '@/lib/model-config';
 import { checkAnonymousRateLimit, incrementRateLimit } from "@/lib/rate-limit";
 import { createClient } from '@supabase/supabase-js';
 import { checkUserRateLimit } from '@/lib/rate-limit';
@@ -143,43 +145,63 @@ export async function POST(req: Request) {
       console.log("[Chat API] Development mode: Rate limiting disabled");
     }
 
-    // Detect available API keys and select provider/tools accordingly
-    const hasOpenAIKey = !!process.env.OPENAI_API_KEY;
+    // Get model configuration based on MODEL_PROVIDER environment variable
+    const modelConfig = getModelConfig();
+    const provider = modelConfig.provider;
 
     let selectedModel: any;
     let modelInfo: string;
 
     if (isDevelopment) {
-      // Development mode: Use OpenAI
-      selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-      modelInfo = hasOpenAIKey
-        ? "OpenAI (gpt-5) - Development Mode"
-        : 'Vercel AI Gateway ("gpt-5") - Development Mode';
+      // Development mode
+      if (modelConfig.hasApiKey) {
+        selectedModel = provider === "anthropic"
+          ? anthropic(modelConfig.primaryModel)
+          : openai(modelConfig.primaryModel);
+        modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "development");
+      } else {
+        // Fallback to Vercel AI Gateway
+        const gatewayModel = `${provider}/${modelConfig.primaryModel}`;
+        selectedModel = gatewayModel;
+        modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Development Mode`;
+      }
     } else {
-      // Production mode: Use Polar-wrapped OpenAI ONLY for pay-per-use users
+      // Production mode
       if (user) {
         // Get user subscription tier to determine billing approach
         const { data: userData } = await db.getUserProfile(user.id);
 
         const userTier = userData?.subscription_tier || userData?.subscriptionTier || 'free';
         const isActive = (userData?.subscription_status || userData?.subscriptionStatus) === 'active';
-        
+
         // Only use Polar LLM Strategy for pay-per-use users
         if (isActive && userTier === 'pay_per_use') {
-          selectedModel = getPolarTrackedModel(user.id, "gpt-5");
-          modelInfo = "OpenAI (gpt-5) - Production Mode (Polar Tracked - Pay-per-use)";
+          selectedModel = getPolarTrackedModel(user.id, modelConfig.primaryModel);
+          modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "polar-tracked");
         } else {
           // Unlimited users and free users use regular model (no per-token billing)
-          selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-          modelInfo = hasOpenAIKey
-            ? `OpenAI (gpt-5) - Production Mode (${userTier} tier - Flat Rate)`
-            : `Vercel AI Gateway ("gpt-5") - Production Mode (${userTier} tier - Flat Rate)`;
+          if (modelConfig.hasApiKey) {
+            selectedModel = provider === "anthropic"
+              ? anthropic(modelConfig.primaryModel)
+              : openai(modelConfig.primaryModel);
+            modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "production", userTier);
+          } else {
+            const gatewayModel = `${provider}/${modelConfig.primaryModel}`;
+            selectedModel = gatewayModel;
+            modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Production Mode (${userTier} tier - Flat Rate)`;
+          }
         }
       } else {
-        selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
-        modelInfo = hasOpenAIKey
-          ? "OpenAI (gpt-5) - Production Mode (Anonymous)"
-          : 'Vercel AI Gateway ("gpt-5") - Production Mode (Anonymous)';
+        // Anonymous users
+        if (modelConfig.hasApiKey) {
+          selectedModel = provider === "anthropic"
+            ? anthropic(modelConfig.primaryModel)
+            : openai(modelConfig.primaryModel);
+          modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "production");
+        } else {
+          selectedModel = `${provider}/${modelConfig.primaryModel}`;
+          modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Production Mode (Anonymous)`;
+        }
       }
     }
 
@@ -205,15 +227,8 @@ export async function POST(req: Request) {
     console.log(`[Chat API] About to call streamText with model:`, selectedModel);
     console.log(`[Chat API] Model info:`, modelInfo);
 
-    // OpenAI-specific provider options
-    const providerOptions: any = {
-      openai: {
-        store: true,
-        reasoningEffort: 'medium',
-        reasoningSummary: 'auto',
-        include: ['reasoning.encrypted_content'],
-      }
-    };
+    // Get provider-specific options based on configured provider
+    const providerOptions = getProviderOptions(provider);
 
     // Save user message immediately (before streaming starts)
     if (user && sessionId && messages.length > 0) {

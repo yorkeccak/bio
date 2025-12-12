@@ -1,6 +1,8 @@
 import { Ingestion } from "@polar-sh/ingestion";
 import { LLMStrategy } from "@polar-sh/ingestion/strategies/LLM";
 import { openai } from "@ai-sdk/openai";
+import { anthropic } from "@ai-sdk/anthropic";
+import { getModelProvider, getModelConfig } from "./model-config";
 
 // Initialize Polar LLM Ingestion Strategy
 let llmIngestion: any = null;
@@ -11,15 +13,24 @@ export function initializePolarLLMStrategy() {
   }
 
   if (!llmIngestion) {
-    
-    llmIngestion = Ingestion({ 
-      accessToken: process.env.POLAR_ACCESS_TOKEN 
+    const modelConfig = getModelConfig();
+
+    // Create the base model for Polar tracking based on configured provider
+    let baseModel;
+    if (modelConfig.provider === "anthropic") {
+      baseModel = anthropic(modelConfig.primaryModel);
+    } else {
+      baseModel = openai(modelConfig.primaryModel);
+    }
+
+    llmIngestion = Ingestion({
+      accessToken: process.env.POLAR_ACCESS_TOKEN
     })
-    .strategy(new LLMStrategy(openai("gpt-5"))) // Default model, can be overridden
+    .strategy(new LLMStrategy(baseModel))
     .ingest("llm_tokens"); // This should match your Polar meter filter
-    
+
   }
-  
+
   return llmIngestion;
 }
 
