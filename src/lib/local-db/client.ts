@@ -95,10 +95,43 @@ function initializeDatabase(sqlite: Database.Database) {
       updated_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
 
+    CREATE TABLE IF NOT EXISTS protein_structures (
+      id TEXT PRIMARY KEY,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      anonymous_id TEXT,
+      session_id TEXT NOT NULL,
+      pdb_id TEXT NOT NULL,
+      protein_name TEXT NOT NULL,
+      search_score REAL,
+      metadata TEXT,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
+      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
+    CREATE TABLE IF NOT EXISTS notebook_cells (
+      id TEXT PRIMARY KEY,
+      session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
+      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
+      cell_index INTEGER NOT NULL,
+      cell_type TEXT NOT NULL DEFAULT 'code',
+      source TEXT NOT NULL,
+      outputs TEXT NOT NULL,
+      execution_count INTEGER,
+      metadata TEXT,
+      execution_time_ms INTEGER,
+      success INTEGER NOT NULL DEFAULT 1,
+      error_message TEXT,
+      retry_count INTEGER DEFAULT 0,
+      created_at INTEGER NOT NULL DEFAULT (unixepoch())
+    );
+
     CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
     CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_charts_session_id ON charts(session_id);
     CREATE INDEX IF NOT EXISTS idx_csvs_session_id ON csvs(session_id);
+    CREATE INDEX IF NOT EXISTS idx_protein_structures_session_id ON protein_structures(session_id);
+    CREATE INDEX IF NOT EXISTS idx_notebook_cells_session_id ON notebook_cells(session_id);
+    CREATE INDEX IF NOT EXISTS idx_notebook_cells_cell_index ON notebook_cells(session_id, cell_index);
   `);
 
   // Insert dev user if it doesn't exist

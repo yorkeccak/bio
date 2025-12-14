@@ -15,7 +15,21 @@ interface SandboxSession {
   createdAt: Date;
 }
 
+// Track notebook cell state per session
+interface NotebookSessionState {
+  cellCount: number;
+  executionOrder: number;
+}
+
 const sandboxSessions = new Map<string, SandboxSession>();
+const notebookSessions = new Map<string, NotebookSessionState>();
+
+function getNotebookState(sessionId: string): NotebookSessionState {
+  if (!notebookSessions.has(sessionId)) {
+    notebookSessions.set(sessionId, { cellCount: 0, executionOrder: 0 });
+  }
+  return notebookSessions.get(sessionId)!;
+}
 
 // Cleanup idle sandboxes (older than 30 minutes)
 const SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
@@ -464,11 +478,19 @@ export const healthcareTools = {
   }),
 
   codeExecution: tool({
-    description: `Execute Python code securely in an E2B Sandbox for biomedical data analysis, statistical calculations, and pharmacokinetic modeling.
+    description: `Execute Python code in a Jupyter notebook cell for biomedical data analysis, statistical calculations, and pharmacokinetic modeling.
 
     CRITICAL: Always include print() statements to show results. Maximum 10,000 characters.
 
-    SESSION PERSISTENCE: Variables and installed packages persist across multiple code executions within the same chat session.
+    SESSION PERSISTENCE: Variables and installed packages persist across multiple code executions within the same chat session. Each execution is tracked as a notebook cell.
+
+    NOTEBOOK FEATURES:
+    - All code executions are saved as notebook cells
+    - Rich outputs supported (matplotlib plots, HTML, images)
+    - Downloadable .ipynb file available
+    - Auto-retry on errors (up to 3 attempts)
+
+    PRE-INSTALLED LIBRARIES: numpy, pandas, scipy, matplotlib, seaborn, scikit-learn, biopython, rdkit, and more.
 
     Example for biomedical calculations:
     # Calculate drug half-life
@@ -488,85 +510,236 @@ export const healthcareTools = {
       const userTier = (options as any)?.experimental_context?.userTier;
       const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
 
+      const MAX_RETRIES = 3;
       const startTime = Date.now();
 
       try {
         if (code.length > 10000) {
-          return '🚫 **Error**: Code too long. Please limit your code to 10,000 characters.';
+          return {
+            success: false,
+            error: { message: 'Code too long. Please limit your code to 10,000 characters.' },
+            code,
+          };
         }
 
         const e2bApiKey = process.env.E2B_API_KEY;
         if (!e2bApiKey) {
-          return '❌ **Configuration Error**: E2B API key is not configured.';
+          return {
+            success: false,
+            error: { message: 'E2B API key is not configured.' },
+            code,
+          };
         }
 
         // Use session ID for persistent sandbox, or generate a temporary one
         const sandboxSessionId = sessionId || `temp-${randomUUID()}`;
         const isNewSession = !sandboxSessions.has(sandboxSessionId);
+        const notebookState = getNotebookState(sandboxSessionId);
+        const cellId = `cell-${sandboxSessionId}-${notebookState.cellCount}`;
+
+        let retryCount = 0;
+        let lastError: any = null;
+        let success = false;
+        let finalResult: any = null;
 
         try {
           const sandbox = await getOrCreateSandbox(sandboxSessionId);
-          const execution = await sandbox.runCode(code);
-          const executionTime = Date.now() - startTime;
 
-          // Collect output from logs and results
-          let output = '';
+          // Retry loop for auto-healing
+          while (retryCount <= MAX_RETRIES) {
+            const cellStartTime = Date.now();
 
-          // Get stdout from logs
-          if (execution.logs?.stdout && execution.logs.stdout.length > 0) {
-            output += execution.logs.stdout.join('\n');
-          }
-
-          // Get stderr if present (for errors/warnings)
-          if (execution.logs?.stderr && execution.logs.stderr.length > 0) {
-            if (output) output += '\n';
-            output += execution.logs.stderr.join('\n');
-          }
-
-          // Check for errors
-          const hasError = execution.error !== null && execution.error !== undefined;
-
-          await track('Python Code Executed', {
-            success: !hasError,
-            codeLength: code.length,
-            executionTime: executionTime,
-            hasDescription: !!description,
-            isNewSession: isNewSession,
-          });
-
-          if (userId && sessionId && userTier === 'pay_per_use' && !hasError && !isDevelopment) {
             try {
-              const polarTracker = new PolarEventTracker();
-              await polarTracker.trackE2BUsage(userId, sessionId, executionTime, {
-                codeLength: code.length,
+              // Use runCode for code execution (E2B's Jupyter-based execution)
+              const cellResult = await sandbox.runCode(code);
+              const executionTime = Date.now() - cellStartTime;
+
+              const outputs: any[] = [];
+
+              // Process stdout
+              if (cellResult.logs?.stdout && cellResult.logs.stdout.length > 0) {
+                outputs.push({ type: 'stdout', text: cellResult.logs.stdout.join('\n') });
+              }
+
+              // Process stderr (warnings)
+              if (cellResult.logs?.stderr && cellResult.logs.stderr.length > 0) {
+                outputs.push({ type: 'stderr', text: cellResult.logs.stderr.join('\n') });
+              }
+
+              // Process rich outputs (images, HTML, etc.) from results
+              if (cellResult.results && cellResult.results.length > 0) {
+                for (const result of cellResult.results) {
+                  // Each result can have different properties based on type
+                  const resultAny = result as any;
+                  if (resultAny.png) {
+                    outputs.push({ type: 'image', format: 'png', data: resultAny.png });
+                  }
+                  if (resultAny.html) {
+                    outputs.push({ type: 'html', data: resultAny.html });
+                  }
+                  if (resultAny.text) {
+                    outputs.push({ type: 'text', text: resultAny.text });
+                  }
+                  if (resultAny.jpeg) {
+                    outputs.push({ type: 'image', format: 'jpeg', data: resultAny.jpeg });
+                  }
+                  if (resultAny.svg) {
+                    outputs.push({ type: 'svg', data: resultAny.svg });
+                  }
+                }
+              }
+
+              // Check for errors
+              if (cellResult.error) {
+                const errorAny = cellResult.error as any;
+                lastError = {
+                  name: errorAny.name || 'Error',
+                  message: errorAny.value || errorAny.message || 'Unknown error',
+                  traceback: errorAny.traceback || [],
+                };
+
+                // If we still have retries left, continue
+                if (retryCount < MAX_RETRIES) {
+                  retryCount++;
+                  console.log(`[E2B Notebook] Retry ${retryCount}/${MAX_RETRIES} for cell execution`);
+                  continue;
+                }
+
+                // No more retries - save failed cell and return error
+                success = false;
+                notebookState.cellCount++;
+
+                // Save failed cell to database
+                try {
+                  await db.createNotebookCell({
+                    id: cellId,
+                    session_id: sessionId || sandboxSessionId,
+                    user_id: userId,
+                    cell_index: notebookState.cellCount - 1,
+                    cell_type: 'code',
+                    source: code,
+                    outputs,
+                    execution_count: undefined,
+                    execution_time_ms: executionTime,
+                    success: false,
+                    error_message: lastError.message,
+                    retry_count: retryCount,
+                    metadata: { description },
+                  });
+                } catch (dbError) {
+                  console.error('[E2B Notebook] Failed to save failed cell:', dbError);
+                }
+
+                finalResult = {
+                  cellId,
+                  cellIndex: notebookState.cellCount - 1,
+                  code,
+                  outputs,
+                  executionTimeMs: executionTime,
+                  success: false,
+                  error: lastError,
+                  retryCount,
+                  description,
+                  isNewSession,
+                };
+                break;
+              }
+
+              // Success!
+              success = true;
+              notebookState.cellCount++;
+              notebookState.executionOrder++;
+
+              // Save successful cell to database
+              try {
+                await db.createNotebookCell({
+                  id: cellId,
+                  session_id: sessionId || sandboxSessionId,
+                  user_id: userId,
+                  cell_index: notebookState.cellCount - 1,
+                  cell_type: 'code',
+                  source: code,
+                  outputs,
+                  execution_count: notebookState.executionOrder,
+                  execution_time_ms: executionTime,
+                  success: true,
+                  retry_count: retryCount,
+                  metadata: { description },
+                });
+              } catch (dbError) {
+                console.error('[E2B Notebook] Failed to save cell:', dbError);
+              }
+
+              // Track analytics
+              await track('Python Code Executed', {
                 success: true,
-                description: description || 'Code execution'
+                codeLength: code.length,
+                executionTime: executionTime,
+                hasDescription: !!description,
+                isNewSession: isNewSession,
+                cellIndex: notebookState.cellCount - 1,
+                retryCount,
               });
-            } catch (error) {
-              console.error('[CodeExecution] Failed to track usage:', error);
+
+              // Track usage for pay-per-use users
+              if (userId && sessionId && userTier === 'pay_per_use' && !isDevelopment) {
+                try {
+                  const polarTracker = new PolarEventTracker();
+                  await polarTracker.trackE2BUsage(userId, sessionId, executionTime, {
+                    codeLength: code.length,
+                    success: true,
+                    description: description || 'Code execution',
+                    cellIndex: notebookState.cellCount - 1,
+                  });
+                } catch (error) {
+                  console.error('[CodeExecution] Failed to track usage:', error);
+                }
+              }
+
+              finalResult = {
+                cellId,
+                cellIndex: notebookState.cellCount - 1,
+                executionOrder: notebookState.executionOrder,
+                code,
+                outputs,
+                executionTimeMs: executionTime,
+                success: true,
+                retryCount,
+                description,
+                isNewSession,
+              };
+              break;
+
+            } catch (execError: any) {
+              lastError = {
+                name: 'ExecutionError',
+                message: execError.message || 'Unknown execution error',
+                traceback: [],
+              };
+
+              if (retryCount < MAX_RETRIES) {
+                retryCount++;
+                continue;
+              }
+
+              // No more retries
+              finalResult = {
+                cellId,
+                cellIndex: notebookState.cellCount,
+                code,
+                outputs: [],
+                executionTimeMs: Date.now() - cellStartTime,
+                success: false,
+                error: lastError,
+                retryCount,
+                description,
+                isNewSession,
+              };
+              break;
             }
           }
 
-          if (hasError) {
-            const errorMessage = typeof execution.error === 'string'
-              ? execution.error
-              : (execution.error as any)?.message || (execution.error as any)?.name || String(execution.error) || 'Unknown error';
-            return `❌ **Execution Error**: ${errorMessage}${output ? `\n\nOutput before error:\n\`\`\`\n${output}\n\`\`\`` : ''}`;
-          }
-
-          return `🐍 **Python Code Execution**
-${description ? `**Description**: ${description}\n` : ''}
-
-\`\`\`python
-${code}
-\`\`\`
-
-**Output:**
-\`\`\`
-${output || '(No output produced)'}
-\`\`\`
-
-⏱️ **Execution Time**: ${executionTime}ms${isNewSession ? ' (new session)' : ' (persistent session)'}`;
+          return finalResult;
 
         } catch (sandboxError: any) {
           // If sandbox creation/execution fails, try to clean up
@@ -580,12 +753,16 @@ ${output || '(No output produced)'}
               console.error('[E2B] Cleanup error after failure:', cleanupError);
             }
             sandboxSessions.delete(sandboxSessionId);
+            notebookSessions.delete(sandboxSessionId);
           }
           throw sandboxError;
         }
-        // Note: We don't delete the sandbox here - it persists for the session
       } catch (error: any) {
-        return `❌ **Error**: ${error.message || 'Unknown error occurred'}`;
+        return {
+          success: false,
+          error: { message: error.message || 'Unknown error occurred' },
+          code,
+        };
       }
     },
   }),

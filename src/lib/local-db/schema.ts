@@ -107,6 +107,28 @@ export const proteinStructures = sqliteTable("protein_structures", {
     .default(sql`(unixepoch())`),
 });
 
+// Notebook cells table - stores Jupyter notebook cells for persistent code execution
+export const notebookCells = sqliteTable("notebook_cells", {
+  id: text("id").primaryKey(),
+  sessionId: text("session_id")
+    .notNull()
+    .references(() => chatSessions.id, { onDelete: "cascade" }),
+  userId: text("user_id").references(() => users.id, { onDelete: "cascade" }),
+  cellIndex: integer("cell_index").notNull(),
+  cellType: text("cell_type").notNull().default("code"), // 'code' | 'markdown'
+  source: text("source").notNull(), // The code/markdown content
+  outputs: text("outputs").notNull(), // JSON array of outputs
+  executionCount: integer("execution_count"), // Jupyter execution count
+  metadata: text("metadata"), // JSON object for additional metadata
+  executionTimeMs: integer("execution_time_ms"),
+  success: integer("success", { mode: "boolean" }).notNull().default(true),
+  errorMessage: text("error_message"),
+  retryCount: integer("retry_count").default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .default(sql`(unixepoch())`),
+});
+
 export type User = typeof users.$inferSelect;
 export type InsertUser = typeof users.$inferInsert;
 export type ChatSession = typeof chatSessions.$inferSelect;
@@ -119,3 +141,5 @@ export type CSV = typeof csvs.$inferSelect;
 export type InsertCSV = typeof csvs.$inferInsert;
 export type ProteinStructure = typeof proteinStructures.$inferSelect;
 export type InsertProteinStructure = typeof proteinStructures.$inferInsert;
+export type NotebookCell = typeof notebookCells.$inferSelect;
+export type InsertNotebookCell = typeof notebookCells.$inferInsert;

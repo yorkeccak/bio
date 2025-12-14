@@ -20,6 +20,7 @@ import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { AppSidebar } from '@/components/app-sidebar';
 import { SidebarProvider, SidebarInset, SidebarTrigger } from '@/components/ui/sidebar';
 import { SignupPrompt } from '@/components/signup-prompt';
+import { NotebookPanel } from '@/components/notebook';
 
 function HomeContent() {
   const { user, loading } = useAuthStore();
@@ -43,6 +44,7 @@ function HomeContent() {
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
   const [messageCount, setMessageCount] = useState(0);
   const [showSignupPrompt, setShowSignupPrompt] = useState(false);
+  const [isNotebookOpen, setIsNotebookOpen] = useState(false);
 
   // Handle rate limit errors from chat interface
   const handleRateLimitError = useCallback((resetTime: string) => {
@@ -376,6 +378,13 @@ function HomeContent() {
           </Suspense>
         </motion.div>
       </SidebarInset>
+
+      {/* Notebook Panel */}
+      <NotebookPanel
+        sessionId={currentSessionId}
+        isOpen={isNotebookOpen}
+        onToggle={() => setIsNotebookOpen(!isNotebookOpen)}
+      />
 
       {/* Rate Limit Dialog */}
       <RateLimitDialog

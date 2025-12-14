@@ -741,7 +741,13 @@ export function ChatInterface({
         const hasOutput = part.state === "output-available";
         const hasError = part.state === "output-error";
 
-        if (hasError) {
+        // Extract notebook cell result from output (new format)
+        const outputData = part.output || {};
+        const isNotebookFormat = typeof outputData === 'object' && ('success' in outputData || 'outputs' in outputData);
+        const cellSuccess = isNotebookFormat ? outputData.success : undefined;
+        const cellError = isNotebookFormat ? outputData.error : undefined;
+
+        if (hasError || (isNotebookFormat && cellSuccess === false && cellError)) {
           return (
             <div key={callId}>
               <TimelineStep
@@ -751,16 +757,37 @@ export function ChatInterface({
                 status="error"
                 type="tool"
                 title="Python Execution Error"
-                subtitle={part.errorText}
+                subtitle={cellError?.message || part.errorText || "Execution failed"}
                 icon={<AlertCircle />}
                 expandedTools={expandedTools}
                 toggleToolExpansion={toggleToolExpansion}
-              />
+              >
+                {hasOutput && isNotebookFormat && (
+                  <MemoizedCodeExecutionResult
+                    code={part.input?.code || outputData.code || ""}
+                    output={outputData}
+                    actionId={callId}
+                    expandedTools={expandedTools}
+                    toggleToolExpansion={toggleToolExpansion}
+                    cellIndex={outputData.cellIndex}
+                    executionOrder={outputData.executionOrder}
+                    success={outputData.success}
+                    error={outputData.error}
+                    retryCount={outputData.retryCount}
+                    executionTimeMs={outputData.executionTimeMs}
+                    outputs={outputData.outputs}
+                    isNewSession={outputData.isNewSession}
+                  />
+                )}
+              </TimelineStep>
             </div>
           );
         }
 
-        const description = part.input?.description || "Executed Python code";
+        const description = part.input?.description || outputData.description || "Executed Python code";
+        const cellIndexLabel = isNotebookFormat && outputData.executionOrder !== undefined
+          ? `Cell [${outputData.executionOrder}]`
+          : "Code & Output";
 
         return (
           <div key={callId}>
@@ -770,7 +797,7 @@ export function ChatInterface({
               index={index}
               status={isStreaming ? "streaming" : "complete"}
               type="tool"
-              title="Code & Output"
+              title={cellIndexLabel}
               subtitle={description}
               icon={<Code2 />}
               expandedTools={expandedTools}
@@ -778,11 +805,19 @@ export function ChatInterface({
             >
               {hasOutput && (
                 <MemoizedCodeExecutionResult
-                  code={part.input?.code || ""}
-                  output={part.output}
+                  code={part.input?.code || outputData.code || ""}
+                  output={isNotebookFormat ? outputData : part.output}
                   actionId={callId}
                   expandedTools={expandedTools}
                   toggleToolExpansion={toggleToolExpansion}
+                  cellIndex={isNotebookFormat ? outputData.cellIndex : undefined}
+                  executionOrder={isNotebookFormat ? outputData.executionOrder : undefined}
+                  success={isNotebookFormat ? outputData.success : undefined}
+                  error={isNotebookFormat ? outputData.error : undefined}
+                  retryCount={isNotebookFormat ? outputData.retryCount : undefined}
+                  executionTimeMs={isNotebookFormat ? outputData.executionTimeMs : undefined}
+                  outputs={isNotebookFormat ? outputData.outputs : undefined}
+                  isNewSession={isNotebookFormat ? outputData.isNewSession : undefined}
                 />
               )}
             </TimelineStep>

@@ -33,7 +33,8 @@
       "WebFetch(domain:github.com)",
       "Bash(git checkout:*)",
       "Bash(npm uninstall:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "WebFetch(domain:e2b.dev)"
     ],
     "deny": [],
     "ask": []

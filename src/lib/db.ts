@@ -490,3 +490,118 @@ export async function createProteinStructure(structure: {
   const { error } = await supabase.from("protein_structures").insert(structure);
   return { error };
 }
+
+// ============================================================================
+// NOTEBOOK CELL FUNCTIONS
+// ============================================================================
+
+export async function getNotebookCells(sessionId: string) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    const cells = await db.query.notebookCells.findMany({
+      where: eq(schema.notebookCells.sessionId, sessionId),
+      orderBy: [schema.notebookCells.cellIndex],
+    });
+    return { data: cells, error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { data, error } = await supabase
+    .from("notebook_cells")
+    .select("*")
+    .eq("session_id", sessionId)
+    .order("cell_index", { ascending: true });
+  return { data, error };
+}
+
+export async function getNotebookCell(cellId: string) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    const cell = await db.query.notebookCells.findFirst({
+      where: eq(schema.notebookCells.id, cellId),
+    });
+    return { data: cell || null, error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { data, error } = await supabase
+    .from("notebook_cells")
+    .select("*")
+    .eq("id", cellId)
+    .single();
+  return { data, error };
+}
+
+export async function getNotebookCellCount(sessionId: string) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    const cells = await db.query.notebookCells.findMany({
+      where: eq(schema.notebookCells.sessionId, sessionId),
+    });
+    return { data: cells.length, error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { count, error } = await supabase
+    .from("notebook_cells")
+    .select("*", { count: "exact", head: true })
+    .eq("session_id", sessionId);
+  return { data: count || 0, error };
+}
+
+export async function createNotebookCell(cell: {
+  id: string;
+  session_id: string;
+  user_id?: string;
+  cell_index: number;
+  cell_type: string;
+  source: string;
+  outputs: any[];
+  execution_count?: number;
+  metadata?: any;
+  execution_time_ms?: number;
+  success: boolean;
+  error_message?: string;
+  retry_count?: number;
+}) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    await db.insert(schema.notebookCells).values({
+      id: cell.id,
+      sessionId: cell.session_id,
+      userId: cell.user_id || null,
+      cellIndex: cell.cell_index,
+      cellType: cell.cell_type,
+      source: cell.source,
+      outputs: JSON.stringify(cell.outputs),
+      executionCount: cell.execution_count || null,
+      metadata: cell.metadata ? JSON.stringify(cell.metadata) : null,
+      executionTimeMs: cell.execution_time_ms || null,
+      success: cell.success,
+      errorMessage: cell.error_message || null,
+      retryCount: cell.retry_count || 0,
+    });
+    return { error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase.from("notebook_cells").insert(cell);
+  return { error };
+}
+
+export async function deleteNotebookCells(sessionId: string) {
+  if (isDevelopmentMode()) {
+    const db = getLocalDb();
+    await db
+      .delete(schema.notebookCells)
+      .where(eq(schema.notebookCells.sessionId, sessionId));
+    return { error: null };
+  }
+
+  const supabase = await createSupabaseClient();
+  const { error } = await supabase
+    .from("notebook_cells")
+    .delete()
+    .eq("session_id", sessionId);
+  return { error };
+}
