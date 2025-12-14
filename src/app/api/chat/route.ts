@@ -3,6 +3,7 @@ import { healthcareTools } from "@/lib/tools";
 import { BiomedUIMessage } from "@/lib/types";
 import { openai, createOpenAI } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { gateway } from "@ai-sdk/gateway";
 import { getModelProvider, getModelConfig, getProviderOptions, getModelInfoString } from '@/lib/model-config';
 import { checkAnonymousRateLimit, incrementRateLimit } from "@/lib/rate-limit";
 import { createClient } from '@supabase/supabase-js';
@@ -155,15 +156,17 @@ export async function POST(req: Request) {
     if (isDevelopment) {
       // Development mode
       if (modelConfig.hasApiKey) {
-        selectedModel = provider === "anthropic"
-          ? anthropic(modelConfig.primaryModel)
-          : openai(modelConfig.primaryModel);
+        selectedModel =
+          provider === "anthropic" ? anthropic(modelConfig.primaryModel) :
+          provider === "openai" ? openai(modelConfig.primaryModel) :
+          provider === "qwen" ? gateway(`alibaba/${modelConfig.primaryModel}`) :
+          anthropic(modelConfig.primaryModel);
         modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "development");
       } else {
         // Fallback to Vercel AI Gateway
-        const gatewayModel = `${provider}/${modelConfig.primaryModel}`;
+        const gatewayModel = `${provider === "qwen" ? "alibaba" : provider}/${modelConfig.primaryModel}`;
         selectedModel = gatewayModel;
-        modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Development Mode`;
+        modelInfo = `Vercel AI Gateway (${gatewayModel}) - Development Mode`;
       }
     } else {
       // Production mode
@@ -181,26 +184,30 @@ export async function POST(req: Request) {
         } else {
           // Unlimited users and free users use regular model (no per-token billing)
           if (modelConfig.hasApiKey) {
-            selectedModel = provider === "anthropic"
-              ? anthropic(modelConfig.primaryModel)
-              : openai(modelConfig.primaryModel);
+            selectedModel =
+              provider === "anthropic" ? anthropic(modelConfig.primaryModel) :
+              provider === "openai" ? openai(modelConfig.primaryModel) :
+              provider === "qwen" ? gateway(`alibaba/${modelConfig.primaryModel}`) :
+              anthropic(modelConfig.primaryModel);
             modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "production", userTier);
           } else {
-            const gatewayModel = `${provider}/${modelConfig.primaryModel}`;
+            const gatewayModel = `${provider === "qwen" ? "alibaba" : provider}/${modelConfig.primaryModel}`;
             selectedModel = gatewayModel;
-            modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Production Mode (${userTier} tier - Flat Rate)`;
+            modelInfo = `Vercel AI Gateway (${gatewayModel}) - Production Mode (${userTier} tier - Flat Rate)`;
           }
         }
       } else {
         // Anonymous users
         if (modelConfig.hasApiKey) {
-          selectedModel = provider === "anthropic"
-            ? anthropic(modelConfig.primaryModel)
-            : openai(modelConfig.primaryModel);
+          selectedModel =
+            provider === "anthropic" ? anthropic(modelConfig.primaryModel) :
+            provider === "openai" ? openai(modelConfig.primaryModel) :
+            provider === "qwen" ? gateway(`alibaba/${modelConfig.primaryModel}`) :
+            anthropic(modelConfig.primaryModel);
           modelInfo = getModelInfoString(modelConfig.primaryModel, provider, "production");
         } else {
-          selectedModel = `${provider}/${modelConfig.primaryModel}`;
-          modelInfo = `Vercel AI Gateway (${provider}/${modelConfig.primaryModel}) - Production Mode (Anonymous)`;
+          selectedModel = `${provider === "qwen" ? "alibaba" : provider}/${modelConfig.primaryModel}`;
+          modelInfo = `Vercel AI Gateway (${selectedModel}) - Production Mode (Anonymous)`;
         }
       }
     }

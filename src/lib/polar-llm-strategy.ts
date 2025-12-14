@@ -2,6 +2,7 @@ import { Ingestion } from "@polar-sh/ingestion";
 import { LLMStrategy } from "@polar-sh/ingestion/strategies/LLM";
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { gateway } from "@ai-sdk/gateway";
 import { getModelProvider, getModelConfig } from "./model-config";
 
 // Initialize Polar LLM Ingestion Strategy
@@ -19,6 +20,11 @@ export function initializePolarLLMStrategy() {
     let baseModel;
     if (modelConfig.provider === "anthropic") {
       baseModel = anthropic(modelConfig.primaryModel);
+    } else if (modelConfig.provider === "qwen") {
+      if (!process.env.AI_GATEWAY_API_KEY) {
+        throw new Error('AI_GATEWAY_API_KEY required for Qwen tracking');
+      }
+      baseModel = gateway(`alibaba/${modelConfig.primaryModel}`);
     } else {
       baseModel = openai(modelConfig.primaryModel);
     }

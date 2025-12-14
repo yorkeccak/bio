@@ -30,7 +30,8 @@
       "Bash(cat:*)",
       "WebFetch(domain:search.rcsb.org)",
       "WebFetch(domain:www.ebi.ac.uk)",
-      "WebFetch(domain:github.com)"
+      "WebFetch(domain:github.com)",
+      "Bash(git checkout:*)"
     ],
     "deny": [],
     "ask": []

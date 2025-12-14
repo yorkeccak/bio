@@ -1,6 +1,7 @@
 import { generateText } from 'ai';
 import { openai } from '@ai-sdk/openai';
 import { anthropic } from '@ai-sdk/anthropic';
+import { gateway } from '@ai-sdk/gateway';
 import { getModelConfig } from '@/lib/model-config';
 
 export async function POST(req: Request) {
@@ -33,8 +34,12 @@ export async function POST(req: Request) {
       model: modelConfig.hasApiKey
         ? (modelConfig.provider === "anthropic"
             ? anthropic(modelConfig.titleModel)
-            : openai(modelConfig.titleModel))
-        : `${modelConfig.provider}/${modelConfig.titleModel}`,
+            : modelConfig.provider === "openai"
+            ? openai(modelConfig.titleModel)
+            : modelConfig.provider === "qwen"
+            ? gateway(`alibaba/${modelConfig.titleModel}`)
+            : anthropic(modelConfig.titleModel))
+        : `${modelConfig.provider === "qwen" ? "alibaba" : modelConfig.provider}/${modelConfig.titleModel}`,
       prompt: `Generate a concise title (max 50 characters) for a biomedical research chat conversation that starts with this message.
       The title should capture the main topic or question.
       If it's about a specific drug, disease, or clinical trial, include it.

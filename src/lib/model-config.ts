@@ -1,8 +1,9 @@
 // Model configuration utility for multi-provider support
 import { openai } from "@ai-sdk/openai";
 import { anthropic } from "@ai-sdk/anthropic";
+import { gateway } from "@ai-sdk/gateway";
 
-export type ModelProvider = "openai" | "anthropic";
+export type ModelProvider = "openai" | "anthropic" | "qwen";
 
 export interface ModelConfig {
   provider: ModelProvider;
@@ -27,6 +28,10 @@ export function getModelProvider(): ModelProvider {
     return "openai";
   }
 
+  if (provider === "qwen") {
+    return "qwen";
+  }
+
   // Invalid provider, log warning and default to Anthropic
   console.warn(`[Model Config] Invalid MODEL_PROVIDER: "${provider}". Defaulting to anthropic.`);
   return "anthropic";
@@ -44,6 +49,15 @@ export function getModelConfig(): ModelConfig {
       primaryModel: "claude-sonnet-4-5-20250929",
       titleModel: "claude-3-5-haiku-20241022", // Fast, cheap model for titles
       hasApiKey: !!process.env.ANTHROPIC_API_KEY,
+    };
+  }
+
+  if (provider === "qwen") {
+    return {
+      provider: "qwen",
+      primaryModel: "qwen3-coder",
+      titleModel: "qwen3-coder",
+      hasApiKey: !!process.env.AI_GATEWAY_API_KEY,
     };
   }
 
@@ -67,6 +81,13 @@ export function createModel(modelId: string) {
       throw new Error("ANTHROPIC_API_KEY is required when MODEL_PROVIDER=anthropic");
     }
     return anthropic(modelId);
+  }
+
+  if (provider === "qwen") {
+    if (!process.env.AI_GATEWAY_API_KEY) {
+      throw new Error("AI_GATEWAY_API_KEY is required when MODEL_PROVIDER=qwen");
+    }
+    return gateway(`alibaba/${modelId}`);
   }
 
   // OpenAI
@@ -94,6 +115,14 @@ export function getProviderOptions(provider: ModelProvider): any {
     };
   }
 
+  if (provider === "qwen") {
+    // Qwen-specific options
+    // Gateway handles routing automatically
+    return {
+      // Add Qwen-specific options here if needed in the future
+    };
+  }
+
   // OpenAI-specific options
   return {
     openai: {
@@ -114,8 +143,16 @@ export function getModelInfoString(
   context: "development" | "production" | "polar-tracked",
   userTier?: string
 ): string {
-  const providerName = provider === "anthropic" ? "Anthropic" : "OpenAI";
-  const displayModel = provider === "anthropic" ? "Claude Sonnet 4.5" : modelId;
+  const providerName =
+    provider === "anthropic" ? "Anthropic" :
+    provider === "openai" ? "OpenAI" :
+    provider === "qwen" ? "Alibaba (Qwen)" :
+    "Unknown";
+
+  const displayModel =
+    provider === "anthropic" ? "Claude Sonnet 4.5" :
+    provider === "qwen" ? "Qwen3 Coder" :
+    modelId;
 
   if (context === "development") {
     return `${providerName} (${displayModel}) - Development Mode`;
