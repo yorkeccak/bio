@@ -27,7 +27,7 @@ export default function PrivacyPolicy() {
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li>To provide and improve our services</li>
               <li>To process queries through OpenAI GPT-5 and Valyu API</li>
-              <li>To execute code through Daytona services</li>
+              <li>To execute code through E2B services</li>
               <li>To authenticate users via Supabase Auth</li>
               <li>To process payments and billing</li>
             </ul>
@@ -41,7 +41,7 @@ export default function PrivacyPolicy() {
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li>OpenAI (for AI processing)</li>
               <li>Valyu API (for search functionality)</li>
-              <li>Daytona (for code execution)</li>
+              <li>E2B (for code execution)</li>
               <li>Supabase (for authentication and database)</li>
               <li>Payment processors (for billing)</li>
             </ul>

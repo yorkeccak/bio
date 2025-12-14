@@ -24,7 +24,7 @@ export default function TermsOfService() {
             <ul className="list-disc pl-6 text-gray-700 dark:text-gray-300 space-y-2">
               <li>OpenAI GPT-5 for natural language processing</li>
               <li>Valyu API for data search and retrieval</li>
-              <li>Daytona for code execution</li>
+              <li>E2B for code execution</li>
               <li>Supabase for authentication and data storage</li>
             </ul>
           </section>

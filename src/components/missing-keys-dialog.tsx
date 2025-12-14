@@ -14,7 +14,7 @@ export function MissingKeysDialog() {
   const [open, setOpen] = useState(false);
   const [status, setStatus] = useState<{
     valyuKeyPresent: boolean;
-    daytonaKeyPresent: boolean;
+    e2bKeyPresent: boolean;
     openaiKeyPresent: boolean;
     aiGatewayKeyPresent: boolean;
   } | null>(null);
@@ -33,7 +33,7 @@ export function MissingKeysDialog() {
 
           const missing =
             !envData.valyuKeyPresent ||
-            !envData.daytonaKeyPresent ||
+            !envData.e2bKeyPresent ||
             (!envData.openaiKeyPresent && !envData.aiGatewayKeyPresent);
 
           // Only show dialog if API keys are missing
@@ -51,11 +51,11 @@ export function MissingKeysDialog() {
   if (!status) return null;
 
   const missingValyu = !status.valyuKeyPresent;
-  const missingDaytona = !status.daytonaKeyPresent;
+  const missingE2B = !status.e2bKeyPresent;
   const missingOpenAI = !status.openaiKeyPresent && !status.aiGatewayKeyPresent;
 
   // Don't show if no API key issues
-  if (!missingValyu && !missingDaytona && !missingOpenAI) return null;
+  if (!missingValyu && !missingE2B && !missingOpenAI) return null;
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -76,11 +76,11 @@ export function MissingKeysDialog() {
               </div>
             </div>
           )}
-          {missingDaytona && (
+          {missingE2B && (
             <div className="rounded-md border p-3">
-              <div className="font-medium">Missing DAYTONA_API_KEY</div>
+              <div className="font-medium">Missing E2B_API_KEY</div>
               <div className="text-muted-foreground">
-                Add DAYTONA_API_KEY to run Python code in the secure sandbox.
+                Add E2B_API_KEY to run Python code in the secure sandbox.
               </div>
             </div>
           )}

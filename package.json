@@ -13,7 +13,7 @@
     "@ai-sdk/anthropic": "^2.0.56",
     "@ai-sdk/openai": "^2.0.18",
     "@ai-sdk/react": "^2.0.18",
-    "@daytonaio/sdk": "^0.25.5",
+    "@e2b/code-interpreter": "^2.3.3",
     "@polar-sh/ingestion": "^0.3.1",
     "@polar-sh/nextjs": "^0.4.4",
     "@polar-sh/sdk": "^0.34.12",

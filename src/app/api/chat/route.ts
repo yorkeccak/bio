@@ -306,9 +306,10 @@ export async function POST(req: Request) {
       
       You can:
 
-         - Execute Python code for pharmacokinetic modeling, statistical analysis, data visualization, and complex calculations using the codeExecution tool (runs in a secure Daytona Sandbox)
+         - Execute Python code for pharmacokinetic modeling, statistical analysis, data visualization, and complex calculations using the codeExecution tool (runs in a secure E2B Sandbox with persistent sessions)
          - The Python environment can install packages via pip at runtime inside the sandbox (e.g., numpy, pandas, scipy, scikit-learn, biopython)
-         - Visualization libraries (matplotlib, seaborn, plotly) may work inside Daytona. However, by default, prefer the built-in chart creation tool for standard time series and comparisons. Use Daytona for advanced or custom visualizations only when necessary.
+         - Variables and packages persist across multiple code executions within the same chat session
+         - Visualization libraries (matplotlib, seaborn, plotly) may work inside E2B. However, by default, prefer the built-in chart creation tool for standard time series and comparisons. Use E2B for advanced or custom visualizations only when necessary.
          - Search for clinical trials data using the clinical trials search tool (ClinicalTrials.gov data, trial phases, endpoints, patient populations)
          - Search FDA drug labels using the drug information search tool (DailyMed data, contraindications, dosing, interactions, warnings)
          - Search biomedical literature using the biomedical literature search tool (PubMed articles, ArXiv papers, peer-reviewed research)
@@ -429,11 +430,12 @@ export async function POST(req: Request) {
          4. Show step-by-step calculations for complex problems
          5. Use f-string formatting for professional output
          6. Always calculate intermediate values before printing final results
-          7. Available libraries: You may install and use packages in the Daytona sandbox (e.g., numpy, pandas, scikit-learn). Prefer the chart creation tool for visuals unless an advanced/custom visualization is required.
-          8. Visualization guidance: Prefer the chart creation tool for most charts. Use Daytona-rendered plots only for complex, bespoke visualizations that the chart tool cannot represent.
-         
+          7. Available libraries: You may install and use packages in the E2B sandbox (e.g., numpy, pandas, scikit-learn). Prefer the chart creation tool for visuals unless an advanced/custom visualization is required.
+          8. Visualization guidance: Prefer the chart creation tool for most charts. Use E2B-rendered plots only for complex, bespoke visualizations that the chart tool cannot represent.
+          9. Session persistence: Variables and installed packages persist across executions in the same chat - you can reference previously defined variables.
+
           REQUIRED: Every Python script must end with print() statements that show the calculated results with proper labels, units, and formatting. Never just write variable names or expressions without print() - they will not display anything to the user.
-          If generating advanced charts with Daytona (e.g., matplotlib), ensure the code renders the figure (e.g., plt.show()) so artifacts can be captured.
+          If generating advanced charts with E2B (e.g., matplotlib), ensure the code renders the figure (e.g., plt.show()) so artifacts can be captured.
          
          ERROR RECOVERY: If any tool call fails due to validation errors, you will receive an error message explaining what went wrong. When this happens:
          1. Read the error message carefully to understand what fields are missing or incorrect

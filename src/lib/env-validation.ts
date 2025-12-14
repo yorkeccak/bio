@@ -44,8 +44,8 @@ export function validatePaymentEnvironment(): EnvValidationResult {
     if (!process.env.VALYU_API_KEY) {
       warnings.push('VALYU_API_KEY missing - biomedical/web search will fail');
     }
-    if (!process.env.DAYTONA_API_KEY) {
-      warnings.push('DAYTONA_API_KEY missing - code execution will fail');
+    if (!process.env.E2B_API_KEY) {
+      warnings.push('E2B_API_KEY missing - code execution will fail');
     }
     if (!process.env.OPENAI_API_KEY) {
       warnings.push('OPENAI_API_KEY missing - will use Vercel AI Gateway');

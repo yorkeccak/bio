@@ -12,7 +12,7 @@ Traditional biomedical research is fragmented across dozens of databases and pla
 
 - **🔬 Comprehensive Medical Data** - PubMed articles, ClinicalTrials.gov data, FDA drug labels, and more
 - **🔍 One Unified Search** - Powered by Valyu's specialized biomedical data API
-- **🐍 Advanced Analytics** - Execute Python code in secure Daytona sandboxes for statistical analysis, pharmacokinetic modeling, and custom calculations
+- **🐍 Advanced Analytics** - Execute Python code in secure E2B sandboxes with persistent sessions for statistical analysis, pharmacokinetic modeling, and custom calculations
 - **📊 Interactive Visualizations** - Beautiful charts and dashboards for clinical data
 - **🌐 Real-Time Intelligence** - Web search integration for breaking medical news
 - **🎯 Natural Language** - Just ask questions like you would to a colleague
@@ -62,7 +62,7 @@ Bio supports two distinct operating modes:
 - npm or yarn
 - OpenAI API key
 - Valyu API key (get one at [platform.valyu.ai](https://platform.valyu.ai))
-- Daytona API key (for code execution)
+- E2B API key (for code execution)
 - Supabase account and project
 - Polar account (for billing)
 
@@ -70,7 +70,7 @@ Bio supports two distinct operating modes:
 - Node.js 18+
 - npm or yarn
 - Valyu API key (get one at [platform.valyu.ai](https://platform.valyu.ai))
-- Daytona API key (for code execution)
+- E2B API key (for code execution)
 
 ### Installation
 
@@ -97,10 +97,8 @@ Bio supports two distinct operating modes:
    # Valyu API Configuration (Required)
    VALYU_API_KEY=your-valyu-api-key
 
-   # Daytona Configuration (Required for Python execution)
-   DAYTONA_API_KEY=your-daytona-api-key
-   DAYTONA_API_URL=https://api.daytona.io  # Optional
-   DAYTONA_TARGET=latest  # Optional
+   # E2B Configuration (Required for Python execution)
+   E2B_API_KEY=your-e2b-api-key
 
    # OpenAI Configuration (Required)
    OPENAI_API_KEY=your-openai-api-key
@@ -114,8 +112,8 @@ Bio supports two distinct operating modes:
    # Valyu API Configuration (Required)
    VALYU_API_KEY=your-valyu-api-key
 
-   # Daytona Configuration (Required)
-   DAYTONA_API_KEY=your-daytona-api-key
+   # E2B Configuration (Required)
+   E2B_API_KEY=your-e2b-api-key
 
    # Supabase Configuration (Required)
    NEXT_PUBLIC_SUPABASE_URL=your-supabase-url
@@ -146,7 +144,7 @@ Bio supports two distinct operating modes:
 
 ### What is Development Mode?
 
-Development mode provides a complete local development environment without any external dependencies beyond the core APIs (Valyu, Daytona). It's perfect for:
+Development mode provides a complete local development environment without any external dependencies beyond the core APIs (Valyu, E2B). It's perfect for:
 
 - **Local Development** - No Supabase setup required
 - **Offline Work** - All data stored locally in SQLite
@@ -270,11 +268,11 @@ Used for AI chat responses, natural language understanding, and function calling
 4. Create a new secret key
 5. Copy the key (starts with `sk-`)
 
-#### Daytona API (Required)
+#### E2B API (Required)
 
-Used for secure Python code execution, enabling data analysis, visualizations, and statistical calculations.
+Used for secure Python code execution with persistent sessions, enabling data analysis, visualizations, and statistical calculations.
 
-1. Go to [daytona.io](https://daytona.io)
+1. Go to [e2b.dev](https://e2b.dev)
 2. Sign up for an account
 3. Get your API key from the dashboard
 4. Copy the key
@@ -353,10 +351,8 @@ VALYU_API_KEY=valyu_xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 # OpenAI Configuration
 OPENAI_API_KEY=sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 
-# Daytona Configuration (Code Execution)
-DAYTONA_API_KEY=your-daytona-api-key
-DAYTONA_API_URL=https://api.daytona.io
-DAYTONA_TARGET=latest
+# E2B Configuration (Code Execution)
+E2B_API_KEY=your-e2b-api-key
 
 # Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://xxxxxxxxxxxxx.supabase.co
@@ -464,7 +460,7 @@ POLAR_UNLIMITED_PRODUCT_ID=prod_xxxxxxxxxxxxxxxxxxxxx
 
 **Application:**
 - Set up error tracking (Sentry, LogRocket, etc.)
-- Monitor API usage (Valyu, OpenAI, Daytona)
+- Monitor API usage (Valyu, OpenAI, E2B)
 - Set up uptime monitoring (UptimeRobot, Better Uptime)
 
 ## 💡 Example Queries
@@ -483,14 +479,14 @@ Try these powerful queries to see what Bio can do:
 - **Frontend**: Next.js 15 with App Router, Tailwind CSS, shadcn/ui
 - **AI**: OpenAI GPT-5 with function calling
 - **Data**: Valyu API for comprehensive biomedical data
-- **Code Execution**: Daytona sandboxes for secure Python execution
+- **Code Execution**: E2B sandboxes for secure Python execution with persistent sessions
 - **Visualizations**: Recharts for interactive charts
 - **Real-time**: Streaming responses with Vercel AI SDK
 
 ## 🔒 Security
 
 - Secure API key management
-- Sandboxed code execution via Daytona
+- Sandboxed code execution via E2B
 - No storage of sensitive medical data
 - HTTPS encryption for all API calls
 - HIPAA-compliant architecture (when self-hosted)
@@ -506,7 +502,7 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 ## 🙏 Acknowledgments
 
 - Built with [Valyu](https://platform.valyu.ai) - The unified biomedical data API
-- Powered by [Daytona](https://daytona.io) - Secure code execution
+- Powered by [E2B](https://e2b.dev) - Secure code execution with persistent sessions
 - UI components from [shadcn/ui](https://ui.shadcn.com)
 
 ---

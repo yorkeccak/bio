@@ -81,10 +81,10 @@ export class PolarEventTracker {
   }
 
   /**
-   * Track Daytona code execution usage
+   * Track E2B code execution usage
    * Uses execution time in milliseconds, converted to billable units
    */
-  async trackDaytonaUsage(
+  async trackE2BUsage(
     userId: string,
     sessionId: string,
     executionTimeMs: number,
@@ -108,16 +108,16 @@ export class PolarEventTracker {
       // Calculate cost: $0.001 per second base cost
       const executionSeconds = Math.max(executionTimeMs / 1000, 0.1); // Minimum 0.1 seconds
       const baseCostDollars = executionSeconds * 0.001;
-      
+
       // Apply 20% markup and multiply by 100 for $0.01 unit pricing
       const markupMultiplier = 1.2;
       const billableAmount = Math.ceil(baseCostDollars * markupMultiplier * 100);
 
-      
+
       // Send event to Polar
       await this.polar.events.ingest({
         events: [{
-          name: 'daytona_execution',
+          name: 'e2b_execution',
           externalCustomerId: userId,
           metadata: {
             billable_amount: billableAmount, // This will be summed in Polar meter

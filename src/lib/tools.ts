@@ -3,10 +3,75 @@ import { tool } from "ai";
 import { Valyu } from "valyu-js";
 import { track } from "@vercel/analytics/server";
 import { PolarEventTracker } from '@/lib/polar-events';
-import { Daytona } from '@daytonaio/sdk';
+import { Sandbox } from '@e2b/code-interpreter';
 import { createClient } from '@/utils/supabase/server';
 import * as db from '@/lib/db';
 import { randomUUID } from 'crypto';
+
+// E2B Session Manager - Maintains persistent sandboxes per chat session
+interface SandboxSession {
+  sandbox: Sandbox;
+  lastUsed: Date;
+  createdAt: Date;
+}
+
+const sandboxSessions = new Map<string, SandboxSession>();
+
+// Cleanup idle sandboxes (older than 30 minutes)
+const SANDBOX_IDLE_TIMEOUT_MS = 30 * 60 * 1000; // 30 minutes
+
+async function cleanupIdleSandboxes() {
+  const now = Date.now();
+  const sessionsToCleanup: string[] = [];
+
+  for (const [sessionId, session] of sandboxSessions.entries()) {
+    if (now - session.lastUsed.getTime() > SANDBOX_IDLE_TIMEOUT_MS) {
+      sessionsToCleanup.push(sessionId);
+    }
+  }
+
+  for (const sessionId of sessionsToCleanup) {
+    try {
+      const session = sandboxSessions.get(sessionId);
+      if (session) {
+        await session.sandbox.kill();
+        sandboxSessions.delete(sessionId);
+        console.log(`[E2B] Cleaned up idle sandbox for session: ${sessionId}`);
+      }
+    } catch (error) {
+      console.error(`[E2B] Error cleaning up sandbox for session ${sessionId}:`, error);
+      sandboxSessions.delete(sessionId);
+    }
+  }
+}
+
+// Run cleanup every 5 minutes
+setInterval(cleanupIdleSandboxes, 5 * 60 * 1000);
+
+// Get or create sandbox for a session
+async function getOrCreateSandbox(sessionId: string): Promise<Sandbox> {
+  const existingSession = sandboxSessions.get(sessionId);
+
+  if (existingSession) {
+    // Update last used timestamp
+    existingSession.lastUsed = new Date();
+    return existingSession.sandbox;
+  }
+
+  // Create new sandbox
+  const sandbox = await Sandbox.create({
+    apiKey: process.env.E2B_API_KEY,
+  });
+
+  sandboxSessions.set(sessionId, {
+    sandbox,
+    lastUsed: new Date(),
+    createdAt: new Date(),
+  });
+
+  console.log(`[E2B] Created new sandbox for session: ${sessionId}`);
+  return sandbox;
+}
 
 export const healthcareTools = {
   // Chart Creation Tool - Create interactive charts for biomedical data visualization
@@ -399,9 +464,11 @@ export const healthcareTools = {
   }),
 
   codeExecution: tool({
-    description: `Execute Python code securely in a Daytona Sandbox for biomedical data analysis, statistical calculations, and pharmacokinetic modeling.
+    description: `Execute Python code securely in an E2B Sandbox for biomedical data analysis, statistical calculations, and pharmacokinetic modeling.
 
     CRITICAL: Always include print() statements to show results. Maximum 10,000 characters.
+
+    SESSION PERSISTENCE: Variables and installed packages persist across multiple code executions within the same chat session.
 
     Example for biomedical calculations:
     # Calculate drug half-life
@@ -428,34 +495,49 @@ export const healthcareTools = {
           return '🚫 **Error**: Code too long. Please limit your code to 10,000 characters.';
         }
 
-        const daytonaApiKey = process.env.DAYTONA_API_KEY;
-        if (!daytonaApiKey) {
-          return '❌ **Configuration Error**: Daytona API key is not configured.';
+        const e2bApiKey = process.env.E2B_API_KEY;
+        if (!e2bApiKey) {
+          return '❌ **Configuration Error**: E2B API key is not configured.';
         }
 
-        const daytona = new Daytona({
-          apiKey: daytonaApiKey,
-          serverUrl: process.env.DAYTONA_API_URL,
-          target: (process.env.DAYTONA_TARGET as any) || undefined,
-        });
+        // Use session ID for persistent sandbox, or generate a temporary one
+        const sandboxSessionId = sessionId || `temp-${randomUUID()}`;
+        const isNewSession = !sandboxSessions.has(sandboxSessionId);
 
-        let sandbox: any | null = null;
         try {
-          sandbox = await daytona.create({ language: 'python' });
-          const execution = await sandbox.process.codeRun(code);
+          const sandbox = await getOrCreateSandbox(sandboxSessionId);
+          const execution = await sandbox.runCode(code);
           const executionTime = Date.now() - startTime;
 
+          // Collect output from logs and results
+          let output = '';
+
+          // Get stdout from logs
+          if (execution.logs?.stdout && execution.logs.stdout.length > 0) {
+            output += execution.logs.stdout.join('\n');
+          }
+
+          // Get stderr if present (for errors/warnings)
+          if (execution.logs?.stderr && execution.logs.stderr.length > 0) {
+            if (output) output += '\n';
+            output += execution.logs.stderr.join('\n');
+          }
+
+          // Check for errors
+          const hasError = execution.error !== null && execution.error !== undefined;
+
           await track('Python Code Executed', {
-            success: execution.exitCode === 0,
+            success: !hasError,
             codeLength: code.length,
             executionTime: executionTime,
             hasDescription: !!description,
+            isNewSession: isNewSession,
           });
 
-          if (userId && sessionId && userTier === 'pay_per_use' && execution.exitCode === 0 && !isDevelopment) {
+          if (userId && sessionId && userTier === 'pay_per_use' && !hasError && !isDevelopment) {
             try {
               const polarTracker = new PolarEventTracker();
-              await polarTracker.trackDaytonaUsage(userId, sessionId, executionTime, {
+              await polarTracker.trackE2BUsage(userId, sessionId, executionTime, {
                 codeLength: code.length,
                 success: true,
                 description: description || 'Code execution'
@@ -465,8 +547,11 @@ export const healthcareTools = {
             }
           }
 
-          if (execution.exitCode !== 0) {
-            return `❌ **Execution Error**: ${execution.result || 'Unknown error'}`;
+          if (hasError) {
+            const errorMessage = typeof execution.error === 'string'
+              ? execution.error
+              : (execution.error as any)?.message || (execution.error as any)?.name || String(execution.error) || 'Unknown error';
+            return `❌ **Execution Error**: ${errorMessage}${output ? `\n\nOutput before error:\n\`\`\`\n${output}\n\`\`\`` : ''}`;
           }
 
           return `🐍 **Python Code Execution**
@@ -478,20 +563,27 @@ ${code}
 
 **Output:**
 \`\`\`
-${execution.result || '(No output produced)'}
+${output || '(No output produced)'}
 \`\`\`
 
-⏱️ **Execution Time**: ${executionTime}ms`;
+⏱️ **Execution Time**: ${executionTime}ms${isNewSession ? ' (new session)' : ' (persistent session)'}`;
 
-        } finally {
-          try {
-            if (sandbox) {
-              await sandbox.delete();
+        } catch (sandboxError: any) {
+          // If sandbox creation/execution fails, try to clean up
+          if (sandboxSessionId && sandboxSessions.has(sandboxSessionId)) {
+            try {
+              const session = sandboxSessions.get(sandboxSessionId);
+              if (session) {
+                await session.sandbox.kill();
+              }
+            } catch (cleanupError) {
+              console.error('[E2B] Cleanup error after failure:', cleanupError);
             }
-          } catch (cleanupError) {
-            console.error('[CodeExecution] Cleanup error:', cleanupError);
+            sandboxSessions.delete(sandboxSessionId);
           }
+          throw sandboxError;
         }
+        // Note: We don't delete the sandbox here - it persists for the session
       } catch (error: any) {
         return `❌ **Error**: ${error.message || 'Unknown error occurred'}`;
       }

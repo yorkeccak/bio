@@ -50,7 +50,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "Bio | By Valyu",
     description:
-      "AI-powered biomedical research. Access PubMed, clinical trials, FDA drug labels. Secure Python execution in Daytona sandboxes for statistical analysis and visualizations.",
+      "AI-powered biomedical research. Access PubMed, clinical trials, FDA drug labels. Secure Python execution in E2B sandboxes with persistent sessions for statistical analysis and visualizations.",
     images: ["/valyu.png"],
   },
   icons: {
