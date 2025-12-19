@@ -10,6 +10,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { logEnvironmentStatus } from "@/lib/env-validation";
 import { ProviderSelector } from "@/components/providers/provider-selector";
+import { MigrationBanner } from "@/components/migration-banner";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -85,6 +86,7 @@ export default function RootLayout({
               <PostHogProvider>
                 <OllamaProvider>
                   <MissingKeysDialog />
+                  <MigrationBanner />
                   <ProviderSelector />
                   {children}
                   <Analytics />
