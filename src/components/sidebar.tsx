@@ -54,7 +54,7 @@ export function Sidebar({
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
 
   // Keep dock open by default for everyone
   const [isOpen, setIsOpen] = useState(true);
@@ -349,10 +349,10 @@ export function Sidebar({
               </div>
 
               {/* Divider */}
-              {user && !isDevelopment && <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent my-1" />}
+              {user && !isSelfHosted && <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent my-1" />}
 
               {/* Credits/Billing - Link to Valyu Platform - Hidden in self-hosted mode */}
-              {user && !isDevelopment && isAuthenticated && (
+              {user && !isSelfHosted && isAuthenticated && (
                 <div className="relative group/tooltip">
                   <button
                     onClick={() => window.open('https://platform.valyu.ai', '_blank')}
@@ -367,7 +367,7 @@ export function Sidebar({
               )}
 
               {/* Enterprise */}
-              {user && process.env.NEXT_PUBLIC_APP_MODE !== 'development' && process.env.NEXT_PUBLIC_ENTERPRISE === 'true' && (
+              {user && process.env.NEXT_PUBLIC_APP_MODE !== 'self-hosted' && process.env.NEXT_PUBLIC_ENTERPRISE === 'true' && (
                 <div className="relative group/tooltip">
                   <button
                     onClick={() => setShowEnterpriseModal(true)}
