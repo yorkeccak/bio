@@ -351,7 +351,7 @@ export function Sidebar({
               {/* Divider */}
               {user && !isDevelopment && <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent my-1" />}
 
-              {/* Credits/Billing - Link to Valyu Platform - Hidden in development mode */}
+              {/* Credits/Billing - Link to Valyu Platform - Hidden in self-hosted mode */}
               {user && !isDevelopment && isAuthenticated && (
                 <div className="relative group/tooltip">
                   <button

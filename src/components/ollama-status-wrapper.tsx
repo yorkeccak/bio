@@ -7,8 +7,8 @@ interface OllamaStatusWrapperProps {
 }
 
 export function OllamaStatusWrapper({ hasMessages }: OllamaStatusWrapperProps) {
-  // Only render the indicator in development mode
-  if (process.env.NEXT_PUBLIC_APP_MODE !== 'development') {
+  // Only render the indicator in self-hosted mode
+  if (process.env.NEXT_PUBLIC_APP_MODE !== 'self-hosted') {
     return null;
   }
 

@@ -1702,8 +1702,8 @@ export function ChatInterface({
           'Authorization': `Bearer ${session?.access_token}`
         };
 
-        // Add Ollama preference header if in development mode
-        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'development') {
+        // Add Ollama preference header if in self-hosted mode
+        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted') {
           const ollamaEnabled = localStorage.getItem('ollama-enabled');
           if (ollamaEnabled !== null) {
             titleHeaders['x-ollama-enabled'] = ollamaEnabled;
@@ -1751,8 +1751,8 @@ export function ChatInterface({
           headers['x-ollama-model'] = selectedModel;
         }
 
-        // Check if local provider is enabled in localStorage (only in development mode)
-        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'development') {
+        // Check if local provider is enabled in localStorage (only in self-hosted mode)
+        if (typeof window !== 'undefined' && process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted') {
           const localEnabled = localStorage.getItem('ollama-enabled');
           if (localEnabled !== null) {
             headers['x-ollama-enabled'] = localEnabled;

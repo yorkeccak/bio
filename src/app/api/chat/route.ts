@@ -5,7 +5,7 @@ import { openai, createOpenAI } from "@ai-sdk/openai";
 import { createOllama, ollama } from "ollama-ai-provider-v2";
 import { createClient } from '@supabase/supabase-js';
 import * as db from '@/lib/db';
-import { isDevelopmentMode } from '@/lib/local-db/local-auth';
+import { isSelfHostedMode } from '@/lib/local-db/local-auth';
 import { saveChatMessages } from '@/lib/db';
 
 // 13mins max streaming (vercel limit)
@@ -16,16 +16,16 @@ export async function POST(req: Request) {
     const { messages, sessionId, valyuAccessToken }: { messages: BiomedUIMessage[], sessionId?: string, valyuAccessToken?: string } = await req.json();
 
     // Check app mode and configure accordingly
-    const isDevelopment = isDevelopmentMode();
+    const isSelfHosted = isSelfHostedMode();
 
     // Get authenticated user (uses local auth in dev mode)
     const { data: { user } } = await db.getUser();
 
-    // Legacy Supabase clients (only used in production mode)
+    // Legacy Supabase clients (only used in valyu mode)
     let supabaseAnon: any = null;
     let supabase: any = null;
 
-    if (!isDevelopment) {
+    if (!isSelfHosted) {
       supabaseAnon = createClient(
         process.env.NEXT_PUBLIC_SUPABASE_URL!,
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
@@ -70,8 +70,8 @@ export async function POST(req: Request) {
       'cogito'
     ];
 
-    if (isDevelopment && localEnabled) {
-      // Development mode: Try to use local provider (Ollama or LM Studio) first, fallback to OpenAI
+    if (isSelfHosted && localEnabled) {
+      // Self-hosted mode: Try to use local provider (Ollama or LM Studio) first, fallback to OpenAI
       try {
         let models: any[] = [];
         let providerName = '';
@@ -149,25 +149,25 @@ export async function POST(req: Request) {
 
           // Create a chat model explicitly
           selectedModel = localProviderClient.chat(selectedModelName);
-          modelInfo = `${providerName} (${selectedModelName})${supportsThinking ? ' [Reasoning]' : ''} - Development Mode`;
+          modelInfo = `${providerName} (${selectedModelName})${supportsThinking ? ' [Reasoning]' : ''} - Self-Hosted Mode`;
         } else {
           throw new Error(`No models available in ${localProvider}`);
         }
       } catch (error) {
-        // Fallback to OpenAI in development mode
+        // Fallback to OpenAI in self-hosted mode
         console.error(`[Chat API] Local provider error:`, error);
         selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
         modelInfo = hasOpenAIKey
-          ? "OpenAI (gpt-5) - Development Mode Fallback"
-          : 'Vercel AI Gateway ("gpt-5") - Development Mode Fallback';
+          ? "OpenAI (gpt-5) - Self-Hosted Mode Fallback"
+          : 'Vercel AI Gateway ("gpt-5") - Self-Hosted Mode Fallback';
       }
     } else {
-      // Production mode: Use standard OpenAI
+      // Valyu mode: Use standard OpenAI
       // Billing is handled by Valyu Platform through OAuth proxy
       selectedModel = hasOpenAIKey ? openai("gpt-5") : "openai/gpt-5";
       modelInfo = hasOpenAIKey
-        ? `OpenAI (gpt-5) - Production Mode (${user ? 'Authenticated' : 'Anonymous'})`
-        : `Vercel AI Gateway ("gpt-5") - Production Mode (${user ? 'Authenticated' : 'Anonymous'})`;
+        ? `OpenAI (gpt-5) - Valyu Mode (${user ? 'Authenticated' : 'Anonymous'})`
+        : `Vercel AI Gateway ("gpt-5") - Valyu Mode (${user ? 'Authenticated' : 'Anonymous'})`;
     }
 
     // Usage tracking is handled by Valyu Platform through OAuth proxy
@@ -183,7 +183,7 @@ export async function POST(req: Request) {
     // This follows the Vercel AI SDK v5 recommended pattern.
 
     // Build provider options conditionally based on whether we're using local providers
-    const isUsingLocalProvider = isDevelopment && localEnabled && (modelInfo.includes('Ollama') || modelInfo.includes('LM Studio'));
+    const isUsingLocalProvider = isSelfHosted && localEnabled && (modelInfo.includes('Ollama') || modelInfo.includes('LM Studio'));
     const providerOptions: any = {};
 
     if (isUsingLocalProvider) {
@@ -595,9 +595,9 @@ export async function POST(req: Request) {
       }
     });
 
-    if (isDevelopment) {
-      // Add development mode headers
-      streamResponse.headers.set("X-Development-Mode", "true");
+    if (isSelfHosted) {
+      // Add self-hosted mode headers
+      streamResponse.headers.set("X-Self-Hosted-Mode", "true");
     }
 
     // Add headers to prevent connection drops when tab is backgrounded
