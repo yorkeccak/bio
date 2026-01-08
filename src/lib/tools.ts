@@ -13,7 +13,7 @@ const VALYU_OAUTH_PROXY_URL = process.env.VALYU_OAUTH_PROXY_URL ||
 
 /**
  * Call Valyu API using OAuth proxy when user token is available
- * Falls back to server API key in development mode or when no token
+ * Falls back to server API key in self-hosted mode or when no token
  */
 async function callValyuApi(
   path: string,

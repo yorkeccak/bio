@@ -101,8 +101,8 @@ export function ProviderSelector() {
   };
 
   useEffect(() => {
-    // Only check provider status in development mode
-    if (process.env.NEXT_PUBLIC_APP_MODE !== "development") {
+    // Only check provider status in self-hosted mode
+    if (process.env.NEXT_PUBLIC_APP_MODE !== "self-hosted") {
       return;
     }
     checkBothProviders();

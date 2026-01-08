@@ -24,10 +24,10 @@ export function useSubscription(): UserSubscription {
   const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
   const creditsAvailable = useAuthStore((state) => state.creditsAvailable);
 
-  // Development mode bypass - grant all permissions
-  const isDevelopment = process.env.NEXT_PUBLIC_APP_MODE === 'development';
+  // Self-hosted mode bypass - grant all permissions
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
 
-  if (isDevelopment) {
+  if (isSelfHosted) {
     return {
       tier: 'authenticated',
       status: 'active',
