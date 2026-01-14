@@ -334,6 +334,259 @@ response.results.forEach(paper => {
       },
     ],
   },
+  {
+    name: "ChEMBL",
+    src: "/web.svg",
+    description: "Bioactive compounds and drug discovery data",
+    snippets: [
+      {
+        language: "Python",
+        code: `from valyu import Valyu
+
+valyu = Valyu(api_key="<your_api_key>")
+
+# Search for bioactive compounds
+response = valyu.search(
+    "EGFR kinase inhibitors bioactivity",
+    included_sources=["valyu/valyu-chembl"]
+)
+
+# Get compound details
+for compound in response.results:
+    print(f"Compound: {compound.title}")
+    print(f"Target: {compound.metadata.get('target')}")
+    print(f"Activity: {compound.content[:300]}...")`,
+      },
+      {
+        language: "TypeScript",
+        code: `import { Valyu } from 'valyu';
+
+const valyu = new Valyu({ apiKey: '<your_api_key>' });
+
+// Search for bioactive compounds
+const response = await valyu.search({
+    query: 'EGFR kinase inhibitors bioactivity',
+    includedSources: ['valyu/valyu-chembl'],
+});
+
+// Get compound details
+response.results.forEach(compound => {
+});`,
+      },
+      {
+        language: "cURL",
+        code: `curl -X POST https://api.valyu.ai/v1/deepsearch \\
+  -H "x-api-key: <your_api_key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "query": "EGFR kinase inhibitors bioactivity",
+    "included_sources": ["valyu/valyu-chembl"]
+  }'`,
+      },
+    ],
+  },
+  {
+    name: "DrugBank",
+    src: "/web.svg",
+    description: "Comprehensive drug database with pharmacology data",
+    snippets: [
+      {
+        language: "Python",
+        code: `from valyu import Valyu
+
+valyu = Valyu(api_key="<your_api_key>")
+
+# Search for drug information
+response = valyu.search(
+    "metformin mechanism of action diabetes",
+    included_sources=["valyu/valyu-drugbank"]
+)
+
+# Get drug details
+for drug in response.results:
+    print(f"Drug: {drug.title}")
+    print(f"Mechanism: {drug.content[:300]}...")`,
+      },
+      {
+        language: "TypeScript",
+        code: `import { Valyu } from 'valyu';
+
+const valyu = new Valyu({ apiKey: '<your_api_key>' });
+
+// Search for drug information
+const response = await valyu.search({
+    query: 'metformin mechanism of action diabetes',
+    includedSources: ['valyu/valyu-drugbank'],
+});
+
+// Get drug details
+response.results.forEach(drug => {
+});`,
+      },
+      {
+        language: "cURL",
+        code: `curl -X POST https://api.valyu.ai/v1/deepsearch \\
+  -H "x-api-key: <your_api_key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "query": "metformin mechanism of action diabetes",
+    "included_sources": ["valyu/valyu-drugbank"]
+  }'`,
+      },
+    ],
+  },
+  {
+    name: "Open Targets",
+    src: "/web.svg",
+    description: "Drug target validation and disease associations",
+    snippets: [
+      {
+        language: "Python",
+        code: `from valyu import Valyu
+
+valyu = Valyu(api_key="<your_api_key>")
+
+# Search for drug targets
+response = valyu.search(
+    "BRCA1 breast cancer genetic associations",
+    included_sources=["valyu/valyu-open-targets"]
+)
+
+# Get target validation data
+for target in response.results:
+    print(f"Target: {target.title}")
+    print(f"Disease: {target.metadata.get('disease')}")
+    print(f"Evidence: {target.content[:300]}...")`,
+      },
+      {
+        language: "TypeScript",
+        code: `import { Valyu } from 'valyu';
+
+const valyu = new Valyu({ apiKey: '<your_api_key>' });
+
+// Search for drug targets
+const response = await valyu.search({
+    query: 'BRCA1 breast cancer genetic associations',
+    includedSources: ['valyu/valyu-open-targets'],
+});
+
+// Get target validation data
+response.results.forEach(target => {
+});`,
+      },
+      {
+        language: "cURL",
+        code: `curl -X POST https://api.valyu.ai/v1/deepsearch \\
+  -H "x-api-key: <your_api_key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "query": "BRCA1 breast cancer genetic associations",
+    "included_sources": ["valyu/valyu-open-targets"]
+  }'`,
+      },
+    ],
+  },
+  {
+    name: "NPI Registry",
+    src: "/web.svg",
+    description: "US healthcare provider directory",
+    snippets: [
+      {
+        language: "Python",
+        code: `from valyu import Valyu
+
+valyu = Valyu(api_key="<your_api_key>")
+
+# Search for healthcare providers
+response = valyu.search(
+    "oncology specialists New York",
+    included_sources=["valyu/valyu-npi-registry"]
+)
+
+# Get provider details
+for provider in response.results:
+    print(f"Provider: {provider.title}")
+    print(f"Specialty: {provider.metadata.get('specialty')}")
+    print(f"Location: {provider.content[:200]}...")`,
+      },
+      {
+        language: "TypeScript",
+        code: `import { Valyu } from 'valyu';
+
+const valyu = new Valyu({ apiKey: '<your_api_key>' });
+
+// Search for healthcare providers
+const response = await valyu.search({
+    query: 'oncology specialists New York',
+    includedSources: ['valyu/valyu-npi-registry'],
+});
+
+// Get provider details
+response.results.forEach(provider => {
+});`,
+      },
+      {
+        language: "cURL",
+        code: `curl -X POST https://api.valyu.ai/v1/deepsearch \\
+  -H "x-api-key: <your_api_key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "query": "oncology specialists New York",
+    "included_sources": ["valyu/valyu-npi-registry"]
+  }'`,
+      },
+    ],
+  },
+  {
+    name: "WHO ICD Codes",
+    src: "/assets/banner/who.png",
+    description: "International Classification of Diseases (ICD-10/11)",
+    snippets: [
+      {
+        language: "Python",
+        code: `from valyu import Valyu
+
+valyu = Valyu(api_key="<your_api_key>")
+
+# Search for ICD codes
+response = valyu.search(
+    "diabetes mellitus type 2 ICD code",
+    included_sources=["valyu/valyu-who-icd"]
+)
+
+# Get ICD code details
+for code in response.results:
+    print(f"Code: {code.title}")
+    print(f"Description: {code.content[:200]}...")`,
+      },
+      {
+        language: "TypeScript",
+        code: `import { Valyu } from 'valyu';
+
+const valyu = new Valyu({ apiKey: '<your_api_key>' });
+
+// Search for ICD codes
+const response = await valyu.search({
+    query: 'diabetes mellitus type 2 ICD code',
+    includedSources: ['valyu/valyu-who-icd'],
+});
+
+// Get ICD code details
+response.results.forEach(code => {
+});`,
+      },
+      {
+        language: "cURL",
+        code: `curl -X POST https://api.valyu.ai/v1/deepsearch \\
+  -H "x-api-key: <your_api_key>" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "query": "diabetes mellitus type 2 ICD code",
+    "included_sources": ["valyu/valyu-who-icd"]
+  }'`,
+      },
+    ],
+  },
 ];
 
 const DataSourceLogos = () => {

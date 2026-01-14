@@ -693,6 +693,196 @@ ${execution.result || '(No output produced)'}
       }
     },
   }),
+
+  compoundSearch: tool({
+    description: "Search ChEMBL database for bioactive compounds, drug-like molecules, bioactivity data, and target information. Use for drug discovery, compound screening, and medicinal chemistry research.",
+    inputSchema: z.object({
+      query: z.string().describe('Compound search query (e.g., "kinase inhibitors", "EGFR binding compounds", "aspirin bioactivity")'),
+      maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
+
+      try {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
+          maxNumResults: maxResults || 10,
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-chembl"],
+          relevanceThreshold: 0.4,
+        }, valyuAccessToken);
+
+        await track("Valyu API Call", {
+          toolType: "compoundSearch",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
+        });
+
+        return JSON.stringify({
+          type: "compound_search",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          results: response?.results || [],
+          displaySource: 'ChEMBL'
+        }, null, 2);
+      } catch (error) {
+        return `❌ Error searching compounds: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    },
+  }),
+
+  drugDatabaseSearch: tool({
+    description: "Search DrugBank for comprehensive drug information including mechanisms of action, drug targets, pharmacology, drug-drug interactions, and pharmacokinetics.",
+    inputSchema: z.object({
+      query: z.string().describe('Drug database search query (e.g., "metformin mechanism", "statins interactions", "warfarin pharmacokinetics")'),
+      maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
+
+      try {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
+          maxNumResults: maxResults || 10,
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-drugbank"],
+          relevanceThreshold: 0.4,
+        }, valyuAccessToken);
+
+        await track("Valyu API Call", {
+          toolType: "drugDatabaseSearch",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
+        });
+
+        return JSON.stringify({
+          type: "drug_database",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          results: response?.results || [],
+          displaySource: 'DrugBank'
+        }, null, 2);
+      } catch (error) {
+        return `❌ Error searching drug database: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    },
+  }),
+
+  drugTargetSearch: tool({
+    description: "Search Open Targets for drug target validation data including disease associations, genetic evidence, target tractability, and target-disease relationships.",
+    inputSchema: z.object({
+      query: z.string().describe('Drug target search query (e.g., "BRCA1 cancer associations", "diabetes drug targets", "Alzheimer tractable targets")'),
+      maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
+
+      try {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
+          maxNumResults: maxResults || 10,
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-open-targets"],
+          relevanceThreshold: 0.4,
+        }, valyuAccessToken);
+
+        await track("Valyu API Call", {
+          toolType: "drugTargetSearch",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
+        });
+
+        return JSON.stringify({
+          type: "drug_targets",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          results: response?.results || [],
+          displaySource: 'Open Targets'
+        }, null, 2);
+      } catch (error) {
+        return `❌ Error searching drug targets: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    },
+  }),
+
+  healthcareProviderSearch: tool({
+    description: "Search the US National Provider Identifier (NPI) registry for healthcare provider information including specialties, practice locations, and contact details.",
+    inputSchema: z.object({
+      query: z.string().describe('Healthcare provider search query (e.g., "cardiologist New York", "oncology specialists", "Dr. Smith cardiology")'),
+      maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
+
+      try {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
+          maxNumResults: maxResults || 10,
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-npi-registry"],
+          relevanceThreshold: 0.4,
+        }, valyuAccessToken);
+
+        await track("Valyu API Call", {
+          toolType: "healthcareProviderSearch",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
+        });
+
+        return JSON.stringify({
+          type: "healthcare_providers",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          results: response?.results || [],
+          displaySource: 'NPI Registry'
+        }, null, 2);
+      } catch (error) {
+        return `❌ Error searching healthcare providers: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    },
+  }),
+
+  medicalCodeSearch: tool({
+    description: "Search WHO International Classification of Diseases (ICD-10/ICD-11) codes for diagnosis coding, billing codes, and disease classification.",
+    inputSchema: z.object({
+      query: z.string().describe('Medical code search query (e.g., "diabetes mellitus ICD code", "hypertension classification", "E11 diabetes")'),
+      maxResults: z.number().min(1).max(20).optional().default(10).describe('Maximum number of results'),
+    }),
+    execute: async ({ query, maxResults }, options) => {
+      const valyuAccessToken = (options as any)?.experimental_context?.valyuAccessToken;
+
+      try {
+        const response = await callValyuApi('/v1/deepsearch', {
+          query,
+          maxNumResults: maxResults || 10,
+          searchType: "proprietary",
+          includedSources: ["valyu/valyu-who-icd"],
+          relevanceThreshold: 0.4,
+        }, valyuAccessToken);
+
+        await track("Valyu API Call", {
+          toolType: "medicalCodeSearch",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          usedOAuthProxy: !!valyuAccessToken,
+        });
+
+        return JSON.stringify({
+          type: "medical_codes",
+          query: query,
+          resultCount: response?.results?.length || 0,
+          results: response?.results || [],
+          displaySource: 'WHO ICD'
+        }, null, 2);
+      } catch (error) {
+        return `❌ Error searching medical codes: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      }
+    },
+  }),
 };
 
 // Export with both names for compatibility
