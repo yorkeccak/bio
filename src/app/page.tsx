@@ -324,7 +324,7 @@ function HomeContent() {
               onMessagesChange={handleMessagesChange}
               onSessionCreated={handleSessionCreated}
               onNewChat={handleNewChat}
-              isAuthenticated={!!valyuAccessToken}
+              isAuthenticated={process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted' || !!valyuAccessToken}
               onShowAuth={() => setShowAuthModal(true)}
             />
           </Suspense>
