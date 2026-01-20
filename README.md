@@ -1,8 +1,8 @@
 # Bio
 
-> **Enterprise-grade biomedical research behind a chat interface** - Access PubMed, clinical trials, FDA drug labels, and run complex Python analyses through natural language. Powered by specialized biomedical data APIs.
+Try the hosted version [here](https://bio.valyu.ai) 🙌  Then fork and get building...
 
-Try the hosted version [here](https://bio.valyu.ai) 🙌
+> **Enterprise-grade biomedical research behind a chat interface** - Access PubMed, clinical trials, FDA drug labels, and run complex Python analyses through natural language. Powered by specialized biomedical data APIs.
 
 ![Bio](public/bio-screenshot.png)
 
