@@ -55,6 +55,7 @@
     "react-icons": "^5.5.0",
     "recharts": "^2.15.4",
     "resend": "^6.0.1",
+    "shiki": "^3.19.0",
     "streamdown": "^1.6.10",
     "tailwind-merge": "^3.3.1",
     "tailwindcss-animate": "^1.0.7",
@@ -72,7 +73,18 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.8",
+    "eslint-plugin-react-hooks": "^5.2.0",
+    "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "@tailwindcss/oxide",
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }

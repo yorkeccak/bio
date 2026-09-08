@@ -23,6 +23,9 @@
 # misc
 .DS_Store
 *.pem
+*.key
+credentials.*
+secrets.*
 
 # debug
 npm-debug.log*
@@ -49,3 +52,6 @@ docs/
 
 # local development database
 .local-data/
+
+# OpenCode deepwork state
+.slim/deepwork/

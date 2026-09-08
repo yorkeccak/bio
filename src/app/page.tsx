@@ -1,62 +1,66 @@
 'use client';
 
-import { ChatInterface } from '@/components/chat-interface';
 import { useState, useEffect, useCallback, Suspense } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import BottomBar from '@/components/bottom-bar';
 import Image from 'next/image';
 import { track } from '@vercel/analytics';
-import { Button } from '@/components/ui/button';
-import {
-  CheckCircle,
-  AlertCircle,
-} from 'lucide-react';
-import { useQueryClient } from '@tanstack/react-query';
+import { CheckCircle, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
+import BottomBar from '@/components/bottom-bar';
+import DataSourceLogos from '@/components/data-source-logos';
 import { AuthModal } from '@/components/auth/auth-modal';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { Sidebar } from '@/components/sidebar';
 import { EnterpriseBanner } from '@/components/enterprise/enterprise-banner';
+import { ResearchConsole } from '@/components/research/research-console';
+import { WorkflowShowcase } from '@/components/research/workflow-showcase';
+import { BioBackdrop } from '@/components/research/bio-backdrop';
 
+/**
+ * The landing surface: one question box wired to Valyu deep research, the
+ * prebuilt life sciences workflow catalog underneath, and the data sources
+ * behind both. Conversational chat moved to /chat.
+ */
 function HomeContent() {
-  const { user, loading, valyuAccessToken } = useAuthStore();
-  const queryClient = useQueryClient();
+  const { loading, valyuAccessToken } = useAuthStore();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [hasMessages, setHasMessages] = useState(false);
+
   const [isHoveringTitle, setIsHoveringTitle] = useState(false);
   const [autoTiltTriggered, setAutoTiltTriggered] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-
-  // Get chatId from URL params
-  const chatIdParam = searchParams.get('chatId');
-  const [currentSessionId, setCurrentSessionId] = useState<string | undefined>(chatIdParam || undefined);
-  const [chatKey, setChatKey] = useState(0); // Force remount key
-
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [notification, setNotification] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
 
-  // Listen for auth modal events
+  const isAuthenticated =
+    process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted' || !!valyuAccessToken;
+
+  // Listen for auth modal events (sidebar, rate-limit banners, …)
   useEffect(() => {
     const handleShowAuthModal = () => setShowAuthModal(true);
     window.addEventListener('show-auth-modal', handleShowAuthModal);
     return () => window.removeEventListener('show-auth-modal', handleShowAuthModal);
   }, []);
 
-  const handleMessagesChange = useCallback((hasMessages: boolean) => {
-    setHasMessages(hasMessages);
-  }, []);
-
-  const handleSignUpSuccess = useCallback((message: string) => {
-    setNotification({ type: 'success', message });
-  }, []);
-
-  // Sync currentSessionId with URL param on mount and URL changes
+  // Links minted before chat moved still point at `/?chatId=…` / `/?q=…`.
   useEffect(() => {
-    const chatIdFromUrl = searchParams.get('chatId');
-    // Always sync from URL to state (URL is source of truth)
-    setCurrentSessionId(chatIdFromUrl || undefined);
-  }, [searchParams]); // Only watch searchParams, not currentSessionId to avoid loops
+    const chatId = searchParams.get('chatId');
+    const q = searchParams.get('q');
+    if (!chatId && !q) return;
+    const params = new URLSearchParams();
+    if (chatId) params.set('chatId', chatId);
+    if (q) params.set('q', q);
+    router.replace(`/chat?${params.toString()}`);
+  }, [searchParams, router]);
+
+  // Bounced off a signed-in-only route (e.g. /reports) by the layout gate
+  useEffect(() => {
+    if (searchParams.get('auth') !== 'required') return;
+    setShowAuthModal(true);
+    setNotification({ type: 'error', message: 'Sign in to view your reports.' });
+    router.replace('/');
+  }, [searchParams, router]);
 
   // Handle URL messages from auth callbacks
   useEffect(() => {
@@ -65,20 +69,17 @@ function HomeContent() {
 
     if (message === 'email_updated') {
       setNotification({ type: 'success', message: 'Email address successfully updated!' });
-      router.replace('/'); // Remove URL params
+      router.replace('/');
     } else if (message === 'email_link_expired') {
       setNotification({ type: 'error', message: 'Email confirmation link has expired. Please request a new email change.' });
-      router.replace('/'); // Remove URL params
+      router.replace('/');
     } else if (error === 'auth_failed') {
       setNotification({ type: 'error', message: 'Authentication failed. Please try again.' });
-      router.replace('/'); // Remove URL params
+      router.replace('/');
     }
 
-    // Auto-hide notifications after 5 seconds
     if (notification) {
-      const timer = setTimeout(() => {
-        setNotification(null);
-      }, 5000);
+      const timer = setTimeout(() => setNotification(null), 5000);
       return () => clearTimeout(timer);
     }
   }, [searchParams, router, notification]);
@@ -86,85 +87,43 @@ function HomeContent() {
   // Detect mobile device for touch interactions
   useEffect(() => {
     const checkMobile = () => {
-      const isMobileDevice = window.innerWidth <= 768 || 
-        /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      setIsMobile(isMobileDevice);
+      setIsMobile(
+        window.innerWidth <= 768 ||
+          /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent),
+      );
     };
-    
     checkMobile();
     window.addEventListener('resize', checkMobile);
-    
     return () => window.removeEventListener('resize', checkMobile);
   }, []);
 
-  // Handle title click on mobile
   const handleTitleClick = useCallback(() => {
-    if (isMobile) {
-      track('Title Click', {
-        trigger: 'mobile_touch'
-      });
-      setIsHoveringTitle(true);
-      // Keep it tilted for 3 seconds then close
-      setTimeout(() => {
-        setIsHoveringTitle(false);
-      }, 3000);
-    }
+    if (!isMobile) return;
+    track('Title Click', { trigger: 'mobile_touch' });
+    setIsHoveringTitle(true);
+    setTimeout(() => setIsHoveringTitle(false), 3000);
   }, [isMobile]);
 
-  
   // Auto-trigger tilt animation after 2 seconds
   useEffect(() => {
-    if (!hasMessages && !autoTiltTriggered) {
-      const timer = setTimeout(() => {
-        track('Title Hover', {
-          trigger: 'auto_tilt'
-        });
-        setIsHoveringTitle(true);
-        setAutoTiltTriggered(true);
-        
-        // Keep it tilted for 2 seconds then close
-        setTimeout(() => {
-          setIsHoveringTitle(false);
-        }, 2000);
-      }, 2000);
-      
-      return () => clearTimeout(timer);
-    }
-  }, [hasMessages, autoTiltTriggered]);
+    if (autoTiltTriggered) return;
+    const timer = setTimeout(() => {
+      track('Title Hover', { trigger: 'auto_tilt' });
+      setIsHoveringTitle(true);
+      setAutoTiltTriggered(true);
+      setTimeout(() => setIsHoveringTitle(false), 2000);
+    }, 2000);
+    return () => clearTimeout(timer);
+  }, [autoTiltTriggered]);
 
-  const updateUrlWithSession = useCallback((sessionId: string | null) => {
-    const url = new URL(window.location.href);
-    if (sessionId) {
-      url.searchParams.set('chatId', sessionId);
-    } else {
-      url.searchParams.delete('chatId');
-      url.searchParams.delete('q'); // Also clear query parameter for clean new chat
-    }
-    // Use replace to avoid creating browser history entries
-    window.history.replaceState(null, '', url.toString());
+  const handleSignUpSuccess = useCallback((message: string) => {
+    setNotification({ type: 'success', message });
   }, []);
 
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    setCurrentSessionId(sessionId);
-    updateUrlWithSession(sessionId);
-  }, [updateUrlWithSession]);
-
-  const handleNewChat = useCallback(() => {
-    // Increment key to force ChatInterface remount
-    setChatKey(prev => prev + 1);
-
-    // Clear the local state
-    setCurrentSessionId(undefined);
-
-    // Update URL (which will trigger useEffect to sync state)
-    updateUrlWithSession(null);
-  }, [updateUrlWithSession]);
-
-  const handleSessionCreated = useCallback((sessionId: string) => {
-    setCurrentSessionId(sessionId);
-    updateUrlWithSession(sessionId);
-    queryClient.invalidateQueries({ queryKey: ['sessions'] });
-  }, [queryClient, updateUrlWithSession]);
+  const handleLaunched = useCallback(
+    (reportId: string) => router.push(`/reports?research=${reportId}`),
+    [router],
+  );
 
   if (loading) {
     return (
@@ -175,8 +134,7 @@ function HomeContent() {
   }
 
   return (
-    <div className='min-h-screen bg-[#F5F5F5] dark:bg-gray-950 flex'>
-      {/* Enterprise Banner */}
+    <div className="flex min-h-screen bg-[#F5F5F5] dark:bg-gray-950">
       <EnterpriseBanner />
 
       {/* Notification Toast */}
@@ -186,9 +144,9 @@ function HomeContent() {
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -50 }}
-            className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50"
+            className="fixed top-4 left-1/2 z-50 -translate-x-1/2"
           >
-            <div className={`flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium ${
+            <div className={`flex items-center gap-2 rounded-lg px-4 py-3 text-sm font-medium shadow-lg ${
               notification.type === 'success'
                 ? 'bg-green-50 text-green-800 border border-green-200'
                 : 'bg-red-50 text-red-800 border border-red-200'
@@ -204,136 +162,110 @@ function HomeContent() {
         )}
       </AnimatePresence>
 
-      {/* Sidebar */}
       <Sidebar
-        currentSessionId={currentSessionId}
-        onSessionSelect={handleSessionSelect}
-        onNewChat={handleNewChat}
-        hasMessages={hasMessages}
+        onSessionSelect={(id: string) => router.push(`/chat?chatId=${id}`)}
+        onNewChat={() => router.push('/chat')}
+        hasMessages={false}
       />
 
-      {/* Main Content Area */}
-      <div className="flex-1 flex flex-col pt-0">
-        {/* Header - Animate out when messages appear */}
-        <AnimatePresence mode="wait">
-            {!hasMessages && (
-              <motion.div 
-                className="text-center pt-12 sm:pt-16 pb-6 sm:pb-4 px-4 sm:px-0"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -20, transition: { duration: 0.3 } }}
-                transition={{ duration: 0.6, ease: "easeOut" }}
-              >
-              <motion.div 
-                className="relative mb-10 inline-block"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.1, duration: 0.6, ease: "easeOut" }}
-                onHoverStart={() => {
-                  if (!isMobile) {
-                    track('Title Hover', {
-                      trigger: 'user_hover'
-                    });
-                    setIsHoveringTitle(true);
-                  }
-                }}
-                onHoverEnd={() => {
-                  if (!isMobile) {
-                    setIsHoveringTitle(false);
-                  }
-                }}
-                onClick={handleTitleClick}
-              >
-                <motion.h1
-                  className={`text-4xl sm:text-5xl font-light text-gray-900 dark:text-gray-100 tracking-tight relative z-10 ${
-                    isMobile ? 'cursor-pointer' : 'cursor-default'
-                  }`}
-                  style={{ transformOrigin: '15% 100%' }}
-                  animate={{
-                    rotateZ: isHoveringTitle ? -8 : 0,
-                  }}
-                  transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
-                >
-                  Bio
-                </motion.h1>
-                
-                {/* "By Valyu" that slides out from under */}
-                <motion.div 
-                  className="absolute -bottom-6 left-0 right-0 flex items-center justify-center gap-1"
-                  initial={{ opacity: 0 }}
-                  animate={{ 
-                    opacity: isHoveringTitle ? 1 : 0,
-                    y: isHoveringTitle ? 0 : -10,
-                  }}
-                  transition={{ 
-                    opacity: { delay: isHoveringTitle ? 0.15 : 0, duration: 0.2 },
-                    y: { delay: isHoveringTitle ? 0.1 : 0, duration: 0.3, ease: [0.23, 1, 0.32, 1] }
-                  }}
-                >
-                  <span className="text-sm text-gray-500 dark:text-gray-400 font-light">By</span>
-                  <Image 
-                    src="/valyu.svg" 
-                    alt="Valyu" 
-                    width={60}
-                    height={60}
-                    className="h-5 opacity-80 dark:invert"
-                  />
-                </motion.div>
-                
-                {/* Mobile tap hint */}
-                {isMobile && !isHoveringTitle && !hasMessages && (
-                  <motion.div
-                    className="absolute -bottom-8 left-0 right-0 flex items-center justify-center"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    exit={{ opacity: 0 }}
-                    transition={{ delay: 3, duration: 0.5 }}
-                  >
-                    <span className="text-xs text-gray-400 dark:text-gray-500">
-                      Tap to reveal
-                    </span>
-                  </motion.div>
-                )}
+      <div className="relative flex min-h-screen flex-1 flex-col overflow-hidden">
+        <BioBackdrop />
 
-                {/* Hover area extender */}
-                <div className="absolute inset-0 -bottom-10" />
-              </motion.div>
-              <motion.p
-                className="text-gray-500 dark:text-gray-400 text-xs sm:text-sm max-w-md mx-auto"
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.2, duration: 0.6, ease: "easeOut" }}
-              >
-                Powered by Valyu&apos;s specialized biomedical data infrastructure for comprehensive research
-              </motion.p>
+        <main className="relative z-10 flex flex-1 flex-col items-center px-4 pb-12 pt-10 text-center sm:px-8 sm:pt-14 lg:px-28">
+          {/* Wordmark — hover (or tap) still reveals "By Valyu" */}
+          <motion.div
+            className="relative inline-block"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, ease: 'easeOut' }}
+            onHoverStart={() => {
+              if (isMobile) return;
+              track('Title Hover', { trigger: 'user_hover' });
+              setIsHoveringTitle(true);
+            }}
+            onHoverEnd={() => {
+              if (!isMobile) setIsHoveringTitle(false);
+            }}
+            onClick={handleTitleClick}
+          >
+            <motion.h1
+              className={`relative z-10 text-5xl font-light tracking-tight text-gray-900 dark:text-gray-100 sm:text-6xl ${
+                isMobile ? 'cursor-pointer' : 'cursor-default'
+              }`}
+              style={{ transformOrigin: '15% 100%' }}
+              animate={{ rotateZ: isHoveringTitle ? -8 : 0 }}
+              transition={{ duration: 0.3, ease: [0.23, 1, 0.32, 1] }}
+            >
+              Bio
+            </motion.h1>
+
+            <motion.div
+              className="absolute -bottom-5 left-0 right-0 flex items-center justify-center gap-1"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: isHoveringTitle ? 1 : 0, y: isHoveringTitle ? 0 : -10 }}
+              transition={{
+                opacity: { delay: isHoveringTitle ? 0.15 : 0, duration: 0.2 },
+                y: { delay: isHoveringTitle ? 0.1 : 0, duration: 0.3, ease: [0.23, 1, 0.32, 1] },
+              }}
+            >
+              <span className="text-xs font-light text-gray-500 dark:text-gray-400">By</span>
+              <Image src="/valyu.svg" alt="Valyu" width={60} height={60} className="h-4 opacity-80 dark:invert" />
             </motion.div>
-          )}
-        </AnimatePresence>
-        
-        {/* Chat Interface */}
-        <motion.div 
-          className="flex-1 px-0 sm:px-4"
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          <Suspense fallback={<div className="text-center py-8">Loading...</div>}>
-            <ChatInterface
-              key={chatKey}
-              sessionId={currentSessionId}
-              onMessagesChange={handleMessagesChange}
-              onSessionCreated={handleSessionCreated}
-              onNewChat={handleNewChat}
-              isAuthenticated={process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted' || !!valyuAccessToken}
-              onShowAuth={() => setShowAuthModal(true)}
+
+            <div className="absolute inset-0 -bottom-10" />
+          </motion.div>
+
+          <motion.p
+            className="mt-8 max-w-xl text-sm text-gray-500 dark:text-gray-400 sm:text-[15px]"
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.1, duration: 0.6, ease: 'easeOut' }}
+          >
+            Real-time biomedical research with deep, cited analysis
+          </motion.p>
+
+          <div className="mt-5 w-full">
+            <ResearchConsole
+              isAuthenticated={isAuthenticated}
+              onLaunched={handleLaunched}
+              onRequireAuth={() => setShowAuthModal(true)}
             />
-          </Suspense>
-        </motion.div>
+          </div>
+
+          <div className="mt-6 w-full">
+            <WorkflowShowcase />
+          </div>
+
+          {/* Data sources shown as a light watermark strip, like the finance homepage. */}
+          <motion.div
+            className="mt-6 w-full max-w-5xl"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.75, duration: 0.5 }}
+          >
+            <DataSourceLogos />
+          </motion.div>
+
+          <motion.div
+            className="mt-4 flex items-center justify-center gap-2"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 0.9, duration: 0.5 }}
+          >
+            <span className="text-xs text-gray-400 dark:text-gray-500">Powered by</span>
+            <Image
+              src="/valyu.svg"
+              alt="Valyu"
+              width={60}
+              height={60}
+              className="h-4 opacity-40 dark:invert"
+            />
+          </motion.div>
+        </main>
 
         <BottomBar />
       </div>
 
-      {/* Auth Modal */}
       <AuthModal
         open={showAuthModal}
         onClose={() => setShowAuthModal(false)}

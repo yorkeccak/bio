@@ -626,10 +626,10 @@ const DataSourceLogos = () => {
       animationStartTimeRef.current = Date.now();
 
       await controls.start({
-        x: [0, -100 * allLogos.length],
+        x: [0, -80 * allLogos.length],
         transition: {
           // ↓↓↓ Decrease duration by 1.5x for 1.5x speed ↑↑↑
-          duration: (allLogos.length * 3) / 1.5,
+          duration: (allLogos.length * 2.4) / 1.5,
           ease: "linear",
           repeat: Infinity,
         }
@@ -644,9 +644,9 @@ const DataSourceLogos = () => {
 
     // Calculate current position based on elapsed time
     const elapsedTime = Date.now() - animationStartTimeRef.current;
-    const totalDuration = ((allLogos.length * 3) / 1.5) * 1000; // Convert to ms
+    const totalDuration = ((allLogos.length * 2.4) / 1.5) * 1000; // Convert to ms
     const progress = (elapsedTime % totalDuration) / totalDuration;
-    currentPositionRef.current = -100 * allLogos.length * progress;
+    currentPositionRef.current = -80 * allLogos.length * progress;
 
     controls.stop();
   };
@@ -656,12 +656,12 @@ const DataSourceLogos = () => {
 
     // Get current position from ref
     const currentX = currentPositionRef.current;
-    const targetX = -100 * allLogos.length;
+    const targetX = -80 * allLogos.length;
     const remainingDistance = Math.abs(targetX - currentX);
-    const totalDistance = 100 * allLogos.length;
+    const totalDistance = 80 * allLogos.length;
 
     // Calculate remaining duration to maintain constant speed
-    const totalDuration = (allLogos.length * 3) / 1.5;
+    const totalDuration = (allLogos.length * 2.4) / 1.5;
     const remainingDuration = (remainingDistance / totalDistance) * totalDuration;
 
     // Update animation start time for next cycle
@@ -682,15 +682,15 @@ const DataSourceLogos = () => {
   const isDark = mounted && resolvedTheme === 'dark';
 
   return (
-    <div className="relative w-full overflow-hidden py-4">
+    <div className="relative w-full overflow-hidden py-3">
       <motion.div
-        className="flex gap-12"
+        className="flex gap-8"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 1, duration: 0.5 }}
       >
         <motion.div
-          className="flex gap-12 flex-shrink-0"
+          className="flex gap-8 flex-shrink-0"
           animate={controls}
         >
           {duplicatedLogos.map((logo, index) => {
@@ -709,7 +709,7 @@ const DataSourceLogos = () => {
                   scale: { duration: 0.3 }
                 }}
               >
-                <div className="relative w-16 h-16">
+                <div className="relative w-12 h-12">
                   <Image
                     src={logo.src}
                     alt={logo.name}
