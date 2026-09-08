@@ -76,7 +76,7 @@ export const metadata: Metadata = {
     siteName: "Bio AI Agent by Valyu",
     images: [
       {
-        url: "/bio-screenshot.png",
+        url: "/bio-social-preview.png",
         width: 1200,
         height: 630,
         alt: "Bio AI Agent - Biomedical Deep Research by Valyu",
@@ -90,7 +90,7 @@ export const metadata: Metadata = {
     title: "Bio AI Agent - Biomedical Deep Research | Valyu",
     description:
       "AI-powered biomedical research with access to PubMed, clinical trials, FDA drug labels, and more. Deep research for drug discovery and medical literature analysis.",
-    images: ["/bio-screenshot.png"],
+    images: ["/bio-social-preview.png"],
     creator: "@valyuai",
   },
   icons: {
