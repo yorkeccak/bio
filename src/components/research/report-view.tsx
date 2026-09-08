@@ -11,14 +11,18 @@ import {
   XCircle,
 } from "lucide-react";
 import { CitationTextRenderer } from "@/components/citation-text-renderer";
+import { AuthModal } from "@/components/auth/auth-modal";
 import { ActivityFeed } from "./activity-feed";
 import {
   apiCancelReport,
   apiDownloadReportPdf,
   apiSyncReport,
 } from "@/lib/report-client";
-import type { CitationMap } from "@/lib/citation-utils";
-import type { ReportDTO } from "@/lib/reports";
+import {
+  buildCitationMapFromSources,
+  extractMarkdownLinkCitations,
+  mergeCitations,
+} from "@/lib/citation-utils";
 import { isTerminal } from "@/lib/reports";
 import { ChartGallery, DeliverablesList } from "./report-artifacts";
 import { ErrorNote } from "./error-note";
@@ -41,22 +45,16 @@ function useElapsed(startIso: string | null | undefined, active: boolean) {
   return Number.isNaN(start) ? null : fmtElapsed(now - start);
 }
 
-function buildCitationMap(report: ReportDTO | undefined): CitationMap {
-  const map: CitationMap = {};
-  (report?.sources ?? []).forEach((source, idx) => {
-    if (!source) return;
-    const s = source as any;
-    map[`[${idx + 1}]`] = [
-      {
-        number: String(idx + 1),
-        title: s.title || `Source ${idx + 1}`,
-        url: s.url || "",
-        description: s.content ?? s.summary ?? s.description,
-        toolType: "literature",
-      },
-    ];
-  });
-  return map;
+function ProgressBar({ value, max }: { value: number; max: number }) {
+  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  return (
+    <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+      <div
+        className="h-full rounded-full bg-primary transition-[width] duration-700"
+        style={{ width: `${percent}%` }}
+      />
+    </div>
+  );
 }
 
 export function ReportView({ reportId }: { reportId: string }) {
@@ -65,6 +63,7 @@ export function ReportView({ reportId }: { reportId: string }) {
   const [pdfError, setPdfError] = useState<string | null>(null);
   const [cancelRequested, setCancelRequested] = useState(false);
   const [cancelError, setCancelError] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
   const { data, isLoading, error } = useQuery({
     queryKey: ["report", reportId],
     queryFn: () => apiSyncReport(reportId),
@@ -76,6 +75,7 @@ export function ReportView({ reportId }: { reportId: string }) {
     refetchOnWindowFocus: true,
   });
   const report = data?.report;
+  const progress = data?.progress;
   const elapsed = useElapsed(
     report?.created_at,
     !!report && !isTerminal(report.status),
@@ -110,11 +110,17 @@ export function ReportView({ reportId }: { reportId: string }) {
       setCancelRequested(false);
     }
   };
-  const citationMap = useMemo(() => buildCitationMap(report), [report]);
-  const bodyText = useMemo(
-    () => stripLeadingH1(report?.output ?? ""),
-    [report?.output],
-  );
+  const { citationMap, bodyText } = useMemo(() => {
+    const stripped = stripLeadingH1(report?.output ?? "");
+    const inline = extractMarkdownLinkCitations(stripped);
+    return {
+      citationMap: mergeCitations(
+        buildCitationMapFromSources(report?.sources),
+        inline.citations,
+      ),
+      bodyText: inline.text,
+    };
+  }, [report?.output, report?.sources]);
   if (isLoading)
     return (
       <div className="flex items-center gap-2 py-12 text-muted-foreground">
@@ -180,6 +186,23 @@ export function ReportView({ reportId }: { reportId: string }) {
         ) : null}
       </div>
       {pdfError && <ErrorNote message={pdfError} className="mb-4" />}
+      {!isTerminal(report.status) && data?.authExpired && (
+        <div className="mb-4 rounded-xl border border-border bg-card px-4 py-3">
+          <div className="text-xs font-medium text-foreground">
+            Sign in to keep tracking progress
+          </div>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Your session expired. The report keeps running; sign back in to see
+            live updates.
+          </p>
+          <button
+            onClick={() => setShowAuthModal(true)}
+            className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background"
+          >
+            Sign in with Valyu to continue
+          </button>
+        </div>
+      )}
       {!isTerminal(report.status) && (
         <div className="mb-4 rounded-xl border border-border bg-card px-4 py-3">
           <div className="flex items-start justify-between gap-3">
@@ -187,11 +210,18 @@ export function ReportView({ reportId }: { reportId: string }) {
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
               <div className="min-w-0">
                 <div className="text-xs font-medium text-foreground">
-                  {cancelRequested ? "Stopping research" : "Research running"}
+                  {cancelRequested
+                    ? "Stopping research"
+                    : progress?.total_steps
+                      ? `Researching - step ${progress.current_step ?? 0} of ${progress.total_steps}`
+                      : "Research running"}
                 </div>
                 <p className="text-xs text-muted-foreground">
                   <Clock className="inline h-3 w-3" /> {elapsed ?? "0:00"}{" "}
                   elapsed
+                  {report.estimated_time
+                    ? ` · est. ${report.estimated_time}`
+                    : ""}
                 </p>
                 {data?.syncError && !data.authExpired && (
                   <ErrorNote message={data.syncError} className="mt-0.5" />
@@ -214,6 +244,22 @@ export function ReportView({ reportId }: { reportId: string }) {
               {cancelRequested ? "Cancelling…" : "Cancel"}
             </button>
           </div>
+          <div className="mt-4">
+            {progress?.total_steps ? (
+              <ProgressBar
+                value={progress.current_step ?? 0}
+                max={progress.total_steps}
+              />
+            ) : (
+              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/40" />
+              </div>
+            )}
+          </div>
+          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
+            Runs in the background - safe to close this and come back. It is
+            saved in Reports until it finishes.
+          </p>
         </div>
       )}{" "}
       {!isTerminal(report.status) && (
@@ -237,7 +283,7 @@ export function ReportView({ reportId }: { reportId: string }) {
           </div>
         </details>
       ) : null}
-      {/* Deliverables sit above the report body — they are what most readers
+      {/* Deliverables sit above the report body - they are what most readers
           came for. */}
       {report.status === "completed" && report.deliverables?.length ? (
         <DeliverablesList deliverables={report.deliverables} />
@@ -269,6 +315,7 @@ export function ReportView({ reportId }: { reportId: string }) {
           </div>
         </div>
       )}
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 }

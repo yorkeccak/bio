@@ -8,7 +8,7 @@ import {
 import { listItemToDTO, statusToDTO, deriveTitle } from "@/lib/reports";
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   let body: any;

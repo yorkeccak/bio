@@ -3,7 +3,7 @@ import { requireUser } from "@/lib/api-auth";
 import { suggestDeliverables } from "@/lib/deliverable-suggest";
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   let query = "";

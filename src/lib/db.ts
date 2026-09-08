@@ -4,6 +4,7 @@
  */
 
 import { createClient as createSupabaseClient } from "@/utils/supabase/server";
+import { createClient as createSupabaseDirectClient } from "@supabase/supabase-js";
 import { getLocalDb, DEV_USER_ID } from "./local-db/client";
 import { getDevUser, isSelfHostedMode } from "./local-db/local-auth";
 import { eq, desc, and } from "drizzle-orm";
@@ -20,6 +21,42 @@ export async function getUser() {
 
   const supabase = await createSupabaseClient();
   return await supabase.auth.getUser();
+}
+
+export async function getUserFromToken(accessToken: string) {
+  if (isSelfHostedMode()) {
+    return { data: { user: getDevUser() }, error: null };
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!accessToken || !supabaseUrl || !supabaseAnonKey) {
+    return {
+      data: { user: null },
+      error: { message: "Supabase token auth is not configured" },
+    };
+  }
+
+  const supabase = createSupabaseDirectClient(supabaseUrl, supabaseAnonKey, {
+    global: { headers: { Authorization: `Bearer ${accessToken}` } },
+  });
+  return supabase.auth.getUser(accessToken);
+}
+
+/** Resolve cookies first, then the explicit bearer token sent by API clients. */
+export async function getUserFromRequest(request: Request) {
+  if (isSelfHostedMode()) {
+    return { data: { user: getDevUser() }, error: null };
+  }
+
+  const cookieResult = await getUser();
+  if (cookieResult.data?.user) return cookieResult;
+
+  const authorization = request.headers.get("Authorization");
+  if (authorization?.startsWith("Bearer ")) {
+    return getUserFromToken(authorization.slice(7));
+  }
+  return cookieResult;
 }
 
 export async function getSession() {
@@ -85,7 +122,11 @@ export async function getUserRateLimit(userId: string) {
 
 export async function updateUserRateLimit(
   userId: string,
-  updates: { usage_count?: number; reset_date?: string; last_request_at?: Date }
+  updates: {
+    usage_count?: number;
+    reset_date?: string;
+    last_request_at?: Date;
+  },
 ) {
   if (isSelfHostedMode()) {
     const db = getLocalDb();
@@ -137,7 +178,7 @@ export async function getChatSession(sessionId: string, userId: string) {
     const session = await db.query.chatSessions.findFirst({
       where: and(
         eq(schema.chatSessions.id, sessionId),
-        eq(schema.chatSessions.userId, userId)
+        eq(schema.chatSessions.userId, userId),
       ),
     });
     return { data: session || null, error: null };
@@ -176,7 +217,7 @@ export async function createChatSession(session: {
 export async function updateChatSession(
   sessionId: string,
   userId: string,
-  updates: { title?: string; last_message_at?: Date }
+  updates: { title?: string; last_message_at?: Date },
 ) {
   if (isSelfHostedMode()) {
     const db = getLocalDb();
@@ -193,8 +234,8 @@ export async function updateChatSession(
       .where(
         and(
           eq(schema.chatSessions.id, sessionId),
-          eq(schema.chatSessions.userId, userId)
-        )
+          eq(schema.chatSessions.userId, userId),
+        ),
       );
     return { error: null };
   }
@@ -216,8 +257,8 @@ export async function deleteChatSession(sessionId: string, userId: string) {
       .where(
         and(
           eq(schema.chatSessions.id, sessionId),
-          eq(schema.chatSessions.userId, userId)
-        )
+          eq(schema.chatSessions.userId, userId),
+        ),
       );
     return { error: null };
   }
@@ -261,9 +302,14 @@ export async function saveChatMessages(
     role: string;
     content: any;
     processing_time_ms?: number;
-  }>
+  }>,
 ) {
-  console.log('[DB] saveChatMessages called - sessionId:', sessionId, 'messageCount:', messages.length);
+  console.log(
+    "[DB] saveChatMessages called - sessionId:",
+    sessionId,
+    "messageCount:",
+    messages.length,
+  );
 
   if (isSelfHostedMode()) {
     const db = getLocalDb();
@@ -282,26 +328,29 @@ export async function saveChatMessages(
           role: msg.role,
           content: JSON.stringify(msg.content),
           processingTimeMs: msg.processing_time_ms,
-        }))
+        })),
       );
     }
-    console.log('[DB] Successfully saved messages to local SQLite');
+    console.log("[DB] Successfully saved messages to local SQLite");
     return { error: null };
   }
 
-  console.log('[DB] Saving to Supabase (valyu mode)');
+  console.log("[DB] Saving to Supabase (valyu mode)");
   const supabase = await createSupabaseClient();
 
   // Delete existing messages
-  console.log('[DB] Deleting existing messages for session:', sessionId);
-  const deleteResult = await supabase.from("chat_messages").delete().eq("session_id", sessionId);
+  console.log("[DB] Deleting existing messages for session:", sessionId);
+  const deleteResult = await supabase
+    .from("chat_messages")
+    .delete()
+    .eq("session_id", sessionId);
   if (deleteResult.error) {
-    console.error('[DB] Error deleting messages:', deleteResult.error);
+    console.error("[DB] Error deleting messages:", deleteResult.error);
   }
 
   // Insert new messages
   if (messages.length > 0) {
-    console.log('[DB] Inserting', messages.length, 'messages');
+    console.log("[DB] Inserting", messages.length, "messages");
     const messagesToInsert = messages.map((msg) => ({
       id: msg.id,
       session_id: sessionId,
@@ -309,18 +358,23 @@ export async function saveChatMessages(
       content: msg.content,
       processing_time_ms: msg.processing_time_ms,
     }));
-    console.log('[DB] First message to insert:', JSON.stringify(messagesToInsert[0]));
+    console.log(
+      "[DB] First message to insert:",
+      JSON.stringify(messagesToInsert[0]),
+    );
 
-    const { error } = await supabase.from("chat_messages").insert(messagesToInsert);
+    const { error } = await supabase
+      .from("chat_messages")
+      .insert(messagesToInsert);
     if (error) {
-      console.error('[DB] Error inserting messages:', error);
+      console.error("[DB] Error inserting messages:", error);
     } else {
-      console.log('[DB] Successfully inserted messages to Supabase');
+      console.log("[DB] Successfully inserted messages to Supabase");
     }
     return { error };
   }
 
-  console.log('[DB] No messages to save');
+  console.log("[DB] No messages to save");
   return { error: null };
 }
 

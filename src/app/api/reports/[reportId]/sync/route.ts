@@ -4,7 +4,6 @@ import {
   getDeepResearchStatus,
   isTransientValyuError,
   ValyuError,
-  valyuErrorStatus,
 } from "@/lib/valyu-workflows";
 import { listItemToDTO, statusToDTO } from "@/lib/reports";
 
@@ -21,7 +20,7 @@ export async function POST(
   request: Request,
   { params }: { params: Promise<{ reportId: string }> },
 ) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   const { reportId } = await params;
@@ -72,18 +71,12 @@ export async function POST(
           syncError: e.message,
         });
       }
-      return NextResponse.json(
-        { report, syncError: e.message },
-        { status: valyuErrorStatus(e) },
-      );
+      return NextResponse.json({ report, syncError: e.message });
     }
 
-    return NextResponse.json(
-      {
-        report,
-        syncError: e instanceof Error ? e.message : "Failed to sync report",
-      },
-      { status: 500 },
-    );
+    return NextResponse.json({
+      report,
+      syncError: e instanceof Error ? e.message : "Failed to sync report",
+    });
   }
 }

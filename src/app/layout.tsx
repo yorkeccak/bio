@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { MissingKeysDialog } from "@/components/missing-keys-dialog";
 import { OllamaProvider } from "@/lib/ollama-context";
-import { Analytics } from '@vercel/analytics/next';
+import { Analytics } from "@vercel/analytics/next";
 import { AuthInitializer } from "@/components/auth/auth-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
@@ -98,9 +98,7 @@ export const metadata: Metadata = {
       { url: "/nabla.png", sizes: "32x32", type: "image/png" },
       { url: "/nabla.png", sizes: "16x16", type: "image/png" },
     ],
-    apple: [
-      { url: "/nabla.png", sizes: "180x180", type: "image/png" },
-    ],
+    apple: [{ url: "/nabla.png", sizes: "180x180", type: "image/png" }],
     shortcut: "/nabla.png",
   },
   category: "Technology",
@@ -148,7 +146,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   // Log environment status on server-side render
-  if (typeof window === 'undefined') {
+  if (typeof window === "undefined") {
     logEnvironmentStatus();
   }
 
@@ -166,7 +164,7 @@ export default function RootLayout({
         <ThemeProvider
           attribute="class"
           defaultTheme="light"
-          enableSystem={false}
+          enableSystem
           disableTransitionOnChange
         >
           <QueryProvider>

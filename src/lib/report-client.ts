@@ -26,7 +26,10 @@ export async function buildAuth(): Promise<AuthBundle> {
   try {
     const state = useAuthStore.getState();
     valyuAccessToken =
-      state.getValyuAccessToken?.() ?? state.valyuAccessToken ?? undefined;
+      (await state.getValidValyuAccessToken?.()) ??
+      state.getValyuAccessToken?.() ??
+      state.valyuAccessToken ??
+      undefined;
   } catch {
     // no valyu session
   }
@@ -127,12 +130,14 @@ export interface ResearchTools {
 
 export async function apiSuggestDeliverables(
   query: string,
+  signal?: AbortSignal,
 ): Promise<DeliverableItem[]> {
   try {
     const res = await fetch("/api/deliverables/suggest", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ query }),
+      signal,
     });
     if (!res.ok) return [];
     const json = await res.json();
@@ -191,9 +196,6 @@ export async function apiSyncReport(reportId: string): Promise<{
   });
   const json = await res.json();
   if (!res.ok) throw errorFromResponse(res, json, "Failed to sync report");
-  if (json.authExpired) {
-    throw new Error("Your Valyu session expired. Please sign in again.");
-  }
   return json;
 }
 

@@ -1,1 +1,6 @@
-onlyBuiltDependencies: better-sqlite3 puppeteer
+onlyBuiltDependencies:
+  - better-sqlite3
+  - "@tailwindcss/oxide"
+  - sharp
+  - esbuild
+  - unrs-resolver

@@ -73,8 +73,18 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "15.4.8",
+    "eslint-plugin-react-hooks": "^5.2.0",
     "prettier": "^3.9.6",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "@tailwindcss/oxide",
+      "sharp",
+      "esbuild",
+      "unrs-resolver"
+    ]
   }
 }

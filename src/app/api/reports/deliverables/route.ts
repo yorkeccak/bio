@@ -27,18 +27,21 @@ async function pool<T, R>(
 ): Promise<R[]> {
   const results: R[] = new Array(items.length);
   let cursor = 0;
-  const runners = Array.from({ length: Math.min(limit, items.length) }, async () => {
-    while (cursor < items.length) {
-      const index = cursor++;
-      results[index] = await worker(items[index]);
-    }
-  });
+  const runners = Array.from(
+    { length: Math.min(limit, items.length) },
+    async () => {
+      while (cursor < items.length) {
+        const index = cursor++;
+        results[index] = await worker(items[index]);
+      }
+    },
+  );
   await Promise.all(runners);
   return results;
 }
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   let body: any;
@@ -97,7 +100,9 @@ export async function POST(request: Request) {
     return NextResponse.json(
       {
         error:
-          e instanceof Error ? e.message : "Failed to load deliverable summaries",
+          e instanceof Error
+            ? e.message
+            : "Failed to load deliverable summaries",
       },
       { status: 500 },
     );

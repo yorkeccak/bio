@@ -41,7 +41,7 @@ export const maxDuration = 300; // 5 minutes
  * Response: PDF file download
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   try {

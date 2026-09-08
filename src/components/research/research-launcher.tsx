@@ -60,7 +60,7 @@ export function ResearchLauncher({
       return;
     }
     if (suggestedForRef.current === q) return;
-    // No AbortController here either — see research-console.tsx: an aborted
+    // No AbortController here either - see research-console.tsx: an aborted
     // fetch surfaces as a runtime error overlay in dev even when handled.
     let cancelled = false;
     const timer = setTimeout(async () => {

@@ -23,7 +23,7 @@ export async function GET(
   request: Request,
   { params }: { params: Promise<{ reportId: string }> },
 ) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   const { reportId } = await params;
@@ -62,7 +62,7 @@ export async function DELETE(
   request: Request,
   { params }: { params: Promise<{ reportId: string }> },
 ) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   const { reportId } = await params;

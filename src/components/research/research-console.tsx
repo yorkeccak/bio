@@ -42,6 +42,7 @@ const DELIVERABLE_TYPES: DeliverableType[] = [
 ];
 const MIN_SUGGEST_LENGTH = 20;
 const SUGGEST_DEBOUNCE_MS = 800;
+const LATE_SUGGEST_TIMEOUT_MS = 4000;
 const MAX_DELIVERABLES = 5;
 /** Types the deep research backend can only produce with code execution on. */
 const CODE_BACKED_DELIVERABLES: DeliverableType[] = ["xlsx", "pptx", "docx"];
@@ -79,6 +80,7 @@ export function ResearchConsole({
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const typingRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const submittingRef = useRef(false);
 
   // Grow the input with its content instead of scrolling a one-line box.
   const resize = useCallback(() => {
@@ -88,9 +90,12 @@ export function ResearchConsole({
     el.style.height = `${Math.min(el.scrollHeight, 200)}px`;
   }, []);
   useEffect(resize, [query, resize]);
-  useEffect(() => () => {
-    if (typingRef.current) clearInterval(typingRef.current);
-  }, []);
+  useEffect(
+    () => () => {
+      if (typingRef.current) clearInterval(typingRef.current);
+    },
+    [],
+  );
 
   /* ---- Deliverable suggestions (mirrors the /reports launcher) ---- */
   const deliverablesRef = useRef(deliverables);
@@ -108,17 +113,10 @@ export function ResearchConsole({
       return;
     }
     if (suggestedForRef.current === q) return;
-    /*
-      Deliberately no AbortController. Aborting an in-flight fetch throws an
-      AbortError that Next's dev overlay reports as a runtime error even when
-      the rejection is caught, so selecting an example and hitting enter put a
-      red overlay over a perfectly healthy run. A superseded suggestion is one
-      cheap request, so we let it finish and just ignore the result.
-    */
-    let cancelled = false;
+    const controller = new AbortController();
     const timer = setTimeout(async () => {
-      const suggestions = await apiSuggestDeliverables(q).catch(() => []);
-      if (cancelled) return;
+      const suggestions = await apiSuggestDeliverables(q, controller.signal);
+      if (controller.signal.aborted) return;
       suggestedForRef.current = q;
       if (!suggestions.length) {
         dropStale();
@@ -133,19 +131,17 @@ export function ResearchConsole({
         return;
       setDeliverables(suggestions.slice(0, MAX_DELIVERABLES));
       // Automatically enable code execution if any suggested deliverable needs it.
-      if (
-        suggestions.some((d) => CODE_BACKED_DELIVERABLES.includes(d.type))
-      ) {
+      if (suggestions.some((d) => CODE_BACKED_DELIVERABLES.includes(d.type))) {
         setCodeExecution(true);
       }
     }, SUGGEST_DEBOUNCE_MS);
     return () => {
-      cancelled = true;
       clearTimeout(timer);
+      controller.abort();
     };
   }, [query, launching]);
 
-  /** Types the example in rather than pasting it — same feel as the old cards. */
+  /** Types the example in rather than pasting it - same feel as the old cards. */
   const applyExample = (id: string) => {
     const example = examplePromptById(id);
     if (!example) return;
@@ -168,33 +164,61 @@ export function ResearchConsole({
 
   const submit = async () => {
     const q = query.trim();
-    if (!q || launching) return;
+    if (!q || submittingRef.current) return;
     if (!isAuthenticated) {
       onRequireAuth();
       return;
     }
+    submittingRef.current = true;
     setLaunching(true);
     setError(null);
     void requestNotifyPermission();
-    track("Homepage Research Launched", { mode, deliverables: deliverables.length });
+    track("Homepage Research Launched", {
+      mode,
+      deliverables: deliverables.length,
+    });
     try {
+      let launchDeliverables = deliverablesRef.current;
+      if (
+        suggestedForRef.current !== q &&
+        launchDeliverables.every(
+          (item) => item.suggested || !item.description.trim(),
+        )
+      ) {
+        const lateSuggestions = await apiSuggestDeliverables(
+          q,
+          AbortSignal.timeout(LATE_SUGGEST_TIMEOUT_MS),
+        );
+        suggestedForRef.current = q;
+        if (lateSuggestions.length > 0) {
+          launchDeliverables = lateSuggestions.slice(0, MAX_DELIVERABLES);
+          setDeliverables(launchDeliverables);
+          setDeliverablesOpen(true);
+        }
+      }
+
       const report = await apiCreateResearch(q, mode, {
         charts,
         codeExecution:
           codeExecution ||
-          deliverables.some((d) => CODE_BACKED_DELIVERABLES.includes(d.type)),
-        deliverables,
+          launchDeliverables.some((d) =>
+            CODE_BACKED_DELIVERABLES.includes(d.type),
+          ),
+        deliverables: launchDeliverables,
       });
       onLaunched(report.id);
     } catch (e) {
       setError((e as Error).message);
       setLaunching(false);
+      submittingRef.current = false;
     }
   };
 
   const updateDeliverable = (i: number, patch: Partial<DeliverableItem>) =>
     setDeliverables((prev) =>
-      prev.map((d, idx) => (idx === i ? { ...d, ...patch, suggested: false } : d)),
+      prev.map((d, idx) =>
+        idx === i ? { ...d, ...patch, suggested: false } : d,
+      ),
     );
 
   return (
@@ -221,7 +245,7 @@ export function ResearchConsole({
           }}
           rows={1}
           disabled={launching}
-          placeholder="Ask anything — I'll run deep research and cite my sources…"
+          placeholder="Ask anything - I'll run deep research and cite my sources…"
           aria-label="Research question"
           className="w-full resize-none overflow-y-auto rounded-2xl border border-border bg-card py-3 pl-5 pr-14 text-[15px] leading-6 text-foreground shadow-[0_1px_2px_rgba(0,0,0,0.04)] outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/25 disabled:opacity-60"
         />
@@ -254,7 +278,9 @@ export function ResearchConsole({
             title={m.note}
             className={chip(mode === m.id)}
           >
-            {m.id === "fast" && <Zap className="h-3.5 w-3.5 fill-current" strokeWidth={0} />}
+            {m.id === "fast" && (
+              <Zap className="h-3.5 w-3.5 fill-current" strokeWidth={0} />
+            )}
             {m.label}
           </button>
         ))}
@@ -294,9 +320,12 @@ export function ResearchConsole({
         <div className="mx-auto mt-3 max-w-3xl rounded-2xl border border-border bg-card p-4 text-left">
           <div className="flex items-center justify-between">
             <div>
-              <div className="text-sm font-medium text-foreground">Deliverables</div>
+              <div className="text-sm font-medium text-foreground">
+                Deliverables
+              </div>
               <div className="mt-0.5 text-xs text-muted-foreground">
-                Files generated alongside the report. Suggested from your question.
+                Files generated alongside the report. Suggested from your
+                question.
               </div>
             </div>
             <button
@@ -316,7 +345,7 @@ export function ResearchConsole({
 
           {deliverables.length === 0 ? (
             <p className="mt-3 text-xs text-muted-foreground">
-              None yet — add one, or keep typing and we&apos;ll suggest a set.
+              None yet - add one, or keep typing and we&apos;ll suggest a set.
             </p>
           ) : (
             <div className="mt-3 space-y-2">
@@ -347,7 +376,9 @@ export function ResearchConsole({
                   />
                   <button
                     onClick={() =>
-                      setDeliverables((prev) => prev.filter((_, idx) => idx !== i))
+                      setDeliverables((prev) =>
+                        prev.filter((_, idx) => idx !== i),
+                      )
                     }
                     aria-label="Remove deliverable"
                     className="flex-shrink-0 rounded-lg p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -385,9 +416,7 @@ export function ResearchConsole({
               <span
                 onClick={(e) => {
                   e.stopPropagation();
-                  setDeliverables((prev) =>
-                    prev.filter((_, idx) => idx !== i),
-                  );
+                  setDeliverables((prev) => prev.filter((_, idx) => idx !== i));
                 }}
                 className="ml-0.5 shrink-0 rounded-full p-0.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
               >
@@ -398,7 +427,7 @@ export function ResearchConsole({
         </motion.div>
       )}
 
-      {/* Starter examples — the six capabilities folded into one polished picker */}
+      {/* Starter examples - the six capabilities folded into one polished picker */}
       <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -406,7 +435,9 @@ export function ResearchConsole({
         className="mt-2 flex flex-wrap items-center justify-center gap-2"
       >
         <Sparkles className="h-3.5 w-3.5 text-muted-foreground" />
-        <span className="text-[13px] text-muted-foreground">Not sure where to start?</span>
+        <span className="text-[13px] text-muted-foreground">
+          Not sure where to start?
+        </span>
         <Select value={exampleId} onValueChange={(id) => applyExample(id)}>
           <SelectTrigger className="h-8 w-auto gap-2 rounded-full border-border bg-card px-3.5 text-[13px] font-medium text-foreground hover:border-foreground/25 focus:ring-0 focus:ring-offset-0 [&>svg]:hidden">
             <SelectValue placeholder="Pick an example…" />
@@ -420,7 +451,9 @@ export function ResearchConsole({
               >
                 <span className="mr-1">{e.emoji}</span>
                 {e.label}
-                <span className="ml-1.5 text-muted-foreground">— {e.blurb}</span>
+                <span className="ml-1.5 text-muted-foreground">
+                  - {e.blurb}
+                </span>
               </SelectItem>
             ))}
           </SelectContent>
@@ -428,7 +461,10 @@ export function ResearchConsole({
       </motion.div>
 
       {error && (
-        <ErrorNote message={error} className="mx-auto mt-4 max-w-3xl text-left" />
+        <ErrorNote
+          message={error}
+          className="mx-auto mt-4 max-w-3xl text-left"
+        />
       )}
     </div>
   );

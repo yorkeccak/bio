@@ -22,7 +22,7 @@ const strandPath = (phase: number) => {
 };
 
 /**
- * The faint line-art wash behind the homepage hero — a DNA double helix with a
+ * The faint line-art wash behind the homepage hero - a DNA double helix with a
  * couple of ring structures. Purely decorative: no text, no interaction, and
  * hidden from assistive tech.
  */

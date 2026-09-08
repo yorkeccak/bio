@@ -10,18 +10,18 @@ import { iconForDomain } from "@/lib/domain-icons";
 import { apiListWorkflows } from "@/lib/workflow-client";
 import type { WorkflowDTO } from "@/lib/workflow-types";
 
-/** Synthetic first lens — the catalog's own `popular` flag, not a slug group. */
+/** Synthetic first lens - the catalog's own `popular` flag, not a slug group. */
 const POPULAR = "popular";
 const LENSES = DOMAINS.filter((d) => d.id !== "all");
 const MAX_CARDS = 4;
 
 /**
- * Panel art. Keyed by workflow slug so no two cards repeat — a lens can hold
+ * Panel art. Keyed by workflow slug so no two cards repeat - a lens can hold
  * several workflows, and keying by lens made every Pipeline card (and every
  * Clinical card) wear the same illustration.
  *
- * Each panel carries a muted hue that hints at its subject — clinical blue,
- * pipeline sage, regulatory stone, payer wheat, deal bronze — normalised to a
+ * Each panel carries a muted hue that hints at its subject - clinical blue,
+ * pipeline sage, regulatory stone, payer wheat, deal bronze - normalised to a
  * common saturation and lightness so the row reads as one set rather than a
  * paintbox. Hues are spread so no two cards sharing a lens tab sit adjacent on
  * the wheel.
@@ -62,7 +62,7 @@ function artName(slug: string | undefined, lensId: string | undefined) {
 /** Left-weighted washes that keep card text readable over the artwork. */
 /*
   A light veil rather than a heavy mask. The art is now near-monochrome and
-  already pale, so it needs far less holding back than the tinted set did — this
+  already pale, so it needs far less holding back than the tinted set did - this
   lets the illustration span the card the way the finance cards do, while
   keeping the eyebrow and title comfortably readable on the left.
 */
@@ -121,7 +121,7 @@ function CardShell({
       >
         {/*
           Both art layers are rendered and toggled with `dark:`, so the right one
-          paints on the very first frame — reading the theme in JS would flash the
+          paints on the very first frame - reading the theme in JS would flash the
           light illustration on a hard load in dark mode. The left-weighted scrim
           keeps the eyebrow, title and meta legible over the illustration.
         */}
@@ -218,7 +218,7 @@ export function WorkflowShowcase() {
   return (
     <section className="relative mx-auto w-full max-w-4xl px-4">
       {/*
-        Biomedical research-campus wash behind the workflow band — the finance
+        Biomedical research-campus wash behind the workflow band - the finance
         page's cityscape, in life sciences dress. It breaks out of the section's
         measure to run the full viewport width, is anchored to the bottom so the
         skyline band lands behind the cards rather than the sky, and is masked at
@@ -293,7 +293,7 @@ export function WorkflowShowcase() {
           })}
         </div>
       ) : (
-        // No catalog access (signed out) or an empty lens — offer the lenses.
+        // No catalog access (signed out) or an empty lens - offer the lenses.
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
           {LENSES.map((d, i) => (
             <CardShell

@@ -13,7 +13,6 @@ export async function GET(request: Request) {
   const valyuAccessToken =
     searchParams.get("valyuAccessToken") ||
     request.headers.get("x-valyu-access-token") ||
-    request.headers.get("authorization")?.replace(/^Bearer\s+/i, "") ||
     undefined;
 
   try {

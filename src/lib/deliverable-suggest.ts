@@ -13,7 +13,7 @@ const MIN_QUERY_LENGTH = 20;
 const TIMEOUT_MS = 10000;
 const MAX_DESCRIPTION_LENGTH = 200;
 const MAX_QUERY_CHARS = 1000;
-const model = process.env.DELIVERABLE_SUGGEST_MODEL || "gpt-4o-mini";
+const model = process.env.DELIVERABLE_SUGGEST_MODEL || "gpt-5.6-luna";
 
 const suggestionSchema = z.object({
   suggestions: z.array(
@@ -29,7 +29,7 @@ Suggest a deliverable ONLY when the request implies a tangible artifact:
 - pptx: a slide deck, presentation, or poster-style summary
 - docx: a written memo, report, protocol summary, or document
 
-Return an EMPTY list when the request just wants an answer, a number, an explanation, or a view.
+Return an EMPTY list when the request just wants an answer, a number, an explanation, or a view. Be conservative: a wrong suggestion costs the user credits and time.
 
 When you do suggest one, the description is the important part. It is passed to the research engine to steer what the file contains.
 - Name the actual biomarkers, genes, diseases, cohorts, interventions, endpoints, assays, or periods from the request.
@@ -79,7 +79,11 @@ export async function suggestDeliverables(
       }))
       .filter((s) => s.description.length > 0)
       .slice(0, MAX_SUGGESTIONS);
-  } catch {
+  } catch (error) {
+    console.warn(
+      "[deliverable-suggest] suggestion failed, continuing without one:",
+      error instanceof Error ? error.message : error,
+    );
     return [];
   }
 }

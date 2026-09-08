@@ -8,7 +8,7 @@ import {
 import { listItemToDTO } from "@/lib/reports";
 
 export async function POST(request: Request) {
-  const auth = await requireUser();
+  const auth = await requireUser(request);
   if (!auth.user) return auth.response;
 
   let body: any;
@@ -26,7 +26,10 @@ export async function POST(request: Request) {
 
   try {
     const tasks = await listDeepResearchTasks({ valyuAccessToken });
-    return NextResponse.json({ reports: tasks.map(listItemToDTO) });
+    const reports = tasks
+      .map(listItemToDTO)
+      .sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    return NextResponse.json({ reports });
   } catch (e) {
     if (e instanceof ValyuError) {
       if (e.status === 401) {

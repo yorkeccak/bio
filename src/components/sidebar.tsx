@@ -1,12 +1,12 @@
-'use client';
+"use client";
 
-import { useState, useCallback, useEffect } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
-import { motion, AnimatePresence } from 'framer-motion';
-import Image from 'next/image';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useAuthStore } from '@/lib/stores/use-auth-store';
-import { createClient } from '@/utils/supabase/client-wrapper';
+import { useState, useCallback, useEffect } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
+import Image from "next/image";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useAuthStore } from "@/lib/stores/use-auth-store";
+import { createClient } from "@/utils/supabase/client-wrapper";
 import {
   MessageSquare,
   MessagesSquare,
@@ -19,16 +19,17 @@ import {
   BarChart3,
   Plus,
   Building2,
-} from 'lucide-react';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { ScrollArea } from '@/components/ui/scroll-area';
-import { Button } from '@/components/ui/button';
-import { SettingsModal } from '@/components/user/settings-modal';
-import { SubscriptionModal } from '@/components/user/subscription-modal';
-import { useSubscription } from '@/hooks/use-subscription';
-import { EnterpriseContactModal } from '@/components/enterprise/enterprise-contact-modal';
-import { apiListReports } from '@/lib/report-client';
-import { isTerminal } from '@/lib/reports';
+} from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Button } from "@/components/ui/button";
+import { SettingsModal } from "@/components/user/settings-modal";
+import { SubscriptionModal } from "@/components/user/subscription-modal";
+import { useSubscription } from "@/hooks/use-subscription";
+import { EnterpriseContactModal } from "@/components/enterprise/enterprise-contact-modal";
+import { AuthModal } from "@/components/auth/auth-modal";
+import { apiListReports } from "@/lib/report-client";
+import { unseenCompletedCount } from "@/components/research/report-notify";
 
 interface SidebarProps {
   currentSessionId?: string;
@@ -56,7 +57,7 @@ export function Sidebar({
   const router = useRouter();
   const pathname = usePathname();
   const queryClient = useQueryClient();
-  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === "self-hosted";
 
   // Keep dock open by default for everyone
   const [isOpen, setIsOpen] = useState(true);
@@ -66,49 +67,57 @@ export function Sidebar({
   const [showSubscription, setShowSubscription] = useState(false);
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showEnterpriseModal, setShowEnterpriseModal] = useState(false);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
   // Fetch chat sessions
   const { data: sessions = [], isLoading: loadingSessions } = useQuery({
-    queryKey: ['sessions'],
+    queryKey: ["sessions"],
     queryFn: async () => {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const response = await fetch('/api/chat/sessions', {
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+      const response = await fetch("/api/chat/sessions", {
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       const { sessions } = await response.json();
       return sessions;
     },
-    enabled: !!user
+    enabled: !!user,
   });
 
   // Delete session mutation
   const deleteMutation = useMutation({
     mutationFn: async (sessionId: string) => {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
       await fetch(`/api/chat/sessions/${sessionId}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
 
       return sessionId;
     },
     onSuccess: (sessionId) => {
-      queryClient.invalidateQueries({ queryKey: ['sessions'] });
+      queryClient.invalidateQueries({ queryKey: ["sessions"] });
       if (currentSessionId === sessionId) {
         onNewChat?.();
       }
-    }
+    },
   });
 
-  const handleSessionSelect = useCallback((sessionId: string) => {
-    onSessionSelect?.(sessionId);
-    setShowHistory(false);
-  }, [onSessionSelect]);
+  const handleSessionSelect = useCallback(
+    (sessionId: string) => {
+      onSessionSelect?.(sessionId);
+      setShowHistory(false);
+    },
+    [onSessionSelect],
+  );
 
   const handleNewChat = useCallback(() => {
     onNewChat?.();
@@ -133,8 +142,9 @@ export function Sidebar({
   // Listen for upgrade modal trigger from rate limit banner
   useEffect(() => {
     const handleShowUpgradeModal = () => setShowSubscription(true);
-    window.addEventListener('show-upgrade-modal', handleShowUpgradeModal);
-    return () => window.removeEventListener('show-upgrade-modal', handleShowUpgradeModal);
+    window.addEventListener("show-upgrade-modal", handleShowUpgradeModal);
+    return () =>
+      window.removeEventListener("show-upgrade-modal", handleShowUpgradeModal);
   }, []);
 
   const handleLogoClick = () => {
@@ -142,8 +152,8 @@ export function Sidebar({
     if (currentSessionId || hasMessages) {
       const confirmed = window.confirm(
         user
-          ? 'Leave this conversation? Your chat history will be saved.'
-          : 'Start a new chat? Your current conversation will be lost.'
+          ? "Leave this conversation? Your chat history will be saved."
+          : "Start a new chat? Your current conversation will be lost.",
       );
 
       if (confirmed) {
@@ -158,7 +168,7 @@ export function Sidebar({
     }
 
     // If on homepage without active chat, collapse sidebar only if not in alwaysOpen mode
-    if (pathname === '/') {
+    if (pathname === "/") {
       if (!alwaysOpen) {
         setIsOpen(false);
       }
@@ -173,37 +183,39 @@ export function Sidebar({
       setIsOpen(false);
     }
     setShowHistory(false);
-    router.push('/');
+    router.push("/");
   };
 
   const handleViewUsage = async () => {
     try {
       const supabase = createClient();
-      const { data: { session } } = await supabase.auth.getSession();
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
 
-      const response = await fetch('/api/customer-portal', {
+      const response = await fetch("/api/customer-portal", {
         headers: {
-          'Authorization': `Bearer ${session?.access_token}`
-        }
+          Authorization: `Bearer ${session?.access_token}`,
+        },
       });
 
       if (response.ok) {
         const { redirectUrl } = await response.json();
-        window.open(redirectUrl, '_blank');
+        window.open(redirectUrl, "_blank");
       }
-    } catch (error) {
-    }
+    } catch (error) {}
   };
 
   // Get subscription status from database
   const subscription = useSubscription();
   const { isAuthenticated } = subscription;
-  const { data: reportCount = 0 } = useQuery({
-    queryKey: ['reports', 'count'],
-    queryFn: async () => (await apiListReports()).filter((r) => isTerminal(r.status)).length,
+  const { data: reportsForBadge = [] } = useQuery({
+    queryKey: ["reports", "history"],
+    queryFn: apiListReports,
     enabled: !!user && !!isAuthenticated,
     refetchInterval: 15000,
   });
+  const reportCount = unseenCompletedCount(reportsForBadge);
 
   return (
     <>
@@ -240,9 +252,9 @@ export function Sidebar({
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: -100, opacity: 0 }}
             transition={{
-              type: 'spring',
+              type: "spring",
               damping: 30,
-              stiffness: 300
+              stiffness: 300,
             }}
             className="fixed left-6 top-1/2 -translate-y-1/2 z-40 bg-white/80 dark:bg-gray-900/80 backdrop-blur-2xl border border-gray-200 dark:border-gray-700 rounded-[32px] shadow-2xl py-4 px-3"
           >
@@ -253,15 +265,15 @@ export function Sidebar({
                   onClick={() => setAlwaysOpen(!alwaysOpen)}
                   className={`w-12 h-12 flex items-center justify-center rounded-[20px] transition-all duration-200 hover:scale-110 active:scale-95 ${
                     alwaysOpen
-                      ? 'bg-blue-100 dark:bg-blue-900/30'
-                      : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? "bg-blue-100 dark:bg-blue-900/30"
+                      : "hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
                   <svg
                     className={`w-6 h-6 transition-colors ${
                       alwaysOpen
-                        ? 'text-blue-600 dark:text-blue-400'
-                        : 'text-gray-600 dark:text-gray-400'
+                        ? "text-blue-600 dark:text-blue-400"
+                        : "text-gray-600 dark:text-gray-400"
                     }`}
                     fill="none"
                     stroke="currentColor"
@@ -276,7 +288,7 @@ export function Sidebar({
                   </svg>
                 </button>
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                  {alwaysOpen ? 'Always Open (On)' : 'Always Open (Off)'}
+                  {alwaysOpen ? "Always Open (On)" : "Always Open (Off)"}
                 </div>
               </div>
 
@@ -286,11 +298,15 @@ export function Sidebar({
               {/* Reports */}
               <div className="relative group/tooltip">
                 <button
-                  onClick={() => router.push('/reports')}
+                  onClick={() => router.push("/reports")}
                   className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95 relative"
                 >
                   <FileText className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
-                  {reportCount > 0 ? <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-blue-600 px-1 text-[10px] leading-4 text-white">{reportCount}</span> : null}
+                  {reportCount > 0 ? (
+                    <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-blue-600 px-1 text-[10px] leading-4 text-white">
+                      {reportCount}
+                    </span>
+                  ) : null}
                 </button>
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
                   Reports
@@ -324,40 +340,46 @@ export function Sidebar({
                 <button
                   onClick={() => {
                     if (!user) {
-                      window.dispatchEvent(new CustomEvent('show-auth-modal'));
+                      setShowAuthModal(true);
                     } else {
                       setShowHistory(!showHistory);
                     }
                   }}
                   className={`w-12 h-12 flex items-center justify-center rounded-[20px] transition-all duration-200 hover:scale-110 active:scale-95 ${
                     !user
-                      ? 'opacity-50 cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800'
+                      ? "opacity-50 cursor-not-allowed hover:bg-gray-100 dark:hover:bg-gray-800"
                       : showHistory
-                        ? 'bg-gray-900 dark:bg-gray-100 shadow-lg'
-                        : 'hover:bg-gray-100 dark:hover:bg-gray-800'
+                        ? "bg-gray-900 dark:bg-gray-100 shadow-lg"
+                        : "hover:bg-gray-100 dark:hover:bg-gray-800"
                   }`}
                 >
-                  <MessagesSquare className={`h-6 w-6 transition-colors ${
-                    !user
-                      ? 'text-gray-400 dark:text-gray-600'
-                      : showHistory
-                        ? 'text-white dark:text-gray-900'
-                        : 'text-gray-600 dark:text-gray-400'
-                  }`} />
+                  <MessagesSquare
+                    className={`h-6 w-6 transition-colors ${
+                      !user
+                        ? "text-gray-400 dark:text-gray-600"
+                        : showHistory
+                          ? "text-white dark:text-gray-900"
+                          : "text-gray-600 dark:text-gray-400"
+                    }`}
+                  />
                 </button>
                 <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                  {!user ? 'Sign up (free) for history' : 'History'}
+                  {!user ? "Sign up (free) for history" : "History"}
                 </div>
               </div>
 
               {/* Divider */}
-              {user && !isSelfHosted && <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent my-1" />}
+              {user && !isSelfHosted && (
+                <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent my-1" />
+              )}
 
               {/* Credits/Billing - Link to Valyu Platform - Hidden in self-hosted mode */}
               {user && !isSelfHosted && isAuthenticated && (
                 <div className="relative group/tooltip">
                   <button
-                    onClick={() => window.open('https://platform.valyu.ai', '_blank')}
+                    onClick={() =>
+                      window.open("https://platform.valyu.ai", "_blank")
+                    }
                     className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95"
                   >
                     <CreditCard className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
@@ -369,19 +391,21 @@ export function Sidebar({
               )}
 
               {/* Enterprise */}
-              {user && process.env.NEXT_PUBLIC_APP_MODE !== 'self-hosted' && process.env.NEXT_PUBLIC_ENTERPRISE === 'true' && (
-                <div className="relative group/tooltip">
-                  <button
-                    onClick={() => setShowEnterpriseModal(true)}
-                    className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95"
-                  >
-                    <Building2 className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
-                  </button>
-                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                    Enterprise Solutions
+              {user &&
+                process.env.NEXT_PUBLIC_APP_MODE !== "self-hosted" &&
+                process.env.NEXT_PUBLIC_ENTERPRISE === "true" && (
+                  <div className="relative group/tooltip">
+                    <button
+                      onClick={() => setShowEnterpriseModal(true)}
+                      className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95"
+                    >
+                      <Building2 className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+                    </button>
+                    <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                      Enterprise Solutions
+                    </div>
                   </div>
-                </div>
-              )}
+                )}
 
               {/* Settings */}
               {user && (
@@ -406,7 +430,7 @@ export function Sidebar({
                 <div className="relative group/tooltip">
                   <button
                     onClick={() => {
-                      window.dispatchEvent(new CustomEvent('show-auth-modal'));
+                      setShowAuthModal(true);
                     }}
                     className="w-12 h-12 flex items-center justify-center bg-gradient-to-br from-blue-50 to-emerald-50 dark:from-blue-900/30 dark:to-emerald-900/30 hover:from-blue-100 hover:to-emerald-100 dark:hover:from-blue-900/40 dark:hover:to-emerald-900/40 rounded-[20px] transition-all duration-200 hover:scale-110 active:scale-95 border border-blue-200/50 dark:border-blue-800/50 relative"
                   >
@@ -432,7 +456,7 @@ export function Sidebar({
                     <Avatar className="h-9 w-9 ring-2 ring-transparent hover:ring-gray-300 dark:hover:ring-gray-600 transition-all">
                       <AvatarImage src={user.user_metadata?.avatar_url} />
                       <AvatarFallback className="text-xs bg-gradient-to-br from-gray-900 to-gray-700 dark:from-gray-100 dark:to-gray-300 text-white dark:text-gray-900 font-semibold">
-                        {user.email?.[0]?.toUpperCase() || 'U'}
+                        {user.email?.[0]?.toUpperCase() || "U"}
                       </AvatarFallback>
                     </Avatar>
                   </button>
@@ -459,32 +483,36 @@ export function Sidebar({
                           transition={{ duration: 0.15 }}
                           className="absolute left-full ml-4 bottom-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border border-gray-200 dark:border-gray-700 rounded-2xl shadow-2xl py-2 px-1 min-w-[220px] z-50"
                         >
-                        {/* User Email */}
-                        <div className="px-3 py-2.5 mb-1">
-                          <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">Signed in as</p>
-                          <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
-                            {user.email}
-                          </p>
-                        </div>
+                          {/* User Email */}
+                          <div className="px-3 py-2.5 mb-1">
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">
+                              Signed in as
+                            </p>
+                            <p className="text-sm font-medium text-gray-900 dark:text-gray-100 truncate">
+                              {user.email}
+                            </p>
+                          </div>
 
-                        {/* Divider */}
-                        <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
+                          {/* Divider */}
+                          <div className="h-px bg-gray-200 dark:bg-gray-700 my-1" />
 
-                        {/* Sign Out */}
-                        <button
-                          onClick={() => {
-                            setShowProfileMenu(false);
-                            const confirmed = window.confirm('Are you sure you want to sign out?');
-                            if (confirmed) {
-                              signOut();
-                            }
-                          }}
-                          className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200"
-                        >
-                          <LogOut className="h-4 w-4" />
-                          <span className="font-medium">Sign out</span>
-                        </button>
-                      </motion.div>
+                          {/* Sign Out */}
+                          <button
+                            onClick={() => {
+                              setShowProfileMenu(false);
+                              const confirmed = window.confirm(
+                                "Are you sure you want to sign out?",
+                              );
+                              if (confirmed) {
+                                signOut();
+                              }
+                            }}
+                            className="w-full flex items-center gap-3 px-3 py-2.5 text-sm text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-xl transition-all duration-200"
+                          >
+                            <LogOut className="h-4 w-4" />
+                            <span className="font-medium">Sign out</span>
+                          </button>
+                        </motion.div>
                       </>
                     )}
                   </AnimatePresence>
@@ -544,16 +572,18 @@ export function Sidebar({
               animate={{ x: 0 }}
               exit={{ x: -280 }}
               transition={{
-                type: 'spring',
+                type: "spring",
                 damping: 30,
-                stiffness: 300
+                stiffness: 300,
               }}
               className="fixed left-20 top-4 bottom-4 w-64 bg-white dark:bg-gray-900 rounded-3xl z-50 shadow-xl ml-2 flex flex-col border border-gray-200 dark:border-gray-800"
             >
               {/* Header */}
               <div className="p-4 border-b border-gray-200 dark:border-gray-800">
                 <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">Chat History</h3>
+                  <h3 className="font-semibold text-gray-900 dark:text-gray-100">
+                    Chat History
+                  </h3>
                   <Button
                     variant="ghost"
                     size="sm"
@@ -589,7 +619,9 @@ export function Sidebar({
                         key={session.id}
                         onClick={() => handleSessionSelect(session.id)}
                         className={`flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 dark:hover:bg-gray-800 group cursor-pointer transition-colors ${
-                          currentSessionId === session.id ? 'bg-gray-100 dark:bg-gray-800' : ''
+                          currentSessionId === session.id
+                            ? "bg-gray-100 dark:bg-gray-800"
+                            : ""
                         }`}
                       >
                         <MessageSquare className="h-4 w-4 text-gray-400 dark:text-gray-500 flex-shrink-0" />
@@ -598,7 +630,9 @@ export function Sidebar({
                             {session.title}
                           </div>
                           <div className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">
-                            {new Date(session.last_message_at || session.created_at).toLocaleDateString()}
+                            {new Date(
+                              session.last_message_at || session.created_at,
+                            ).toLocaleDateString()}
                           </div>
                         </div>
                         <button
@@ -636,6 +670,8 @@ export function Sidebar({
         open={showEnterpriseModal}
         onClose={() => setShowEnterpriseModal(false)}
       />
+
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );
 }

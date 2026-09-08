@@ -1,109 +1,123 @@
 import { NextResponse } from "next/server";
-import { requireUser } from "@/lib/api-auth";
+import puppeteer, { Browser } from "puppeteer";
+import * as fs from "fs";
+import * as path from "path";
+import { isSelfHostedMode } from "@/lib/local-db/local-auth";
+import { statusToDTO } from "@/lib/reports";
+import { getDeepResearchStatus } from "@/lib/valyu-workflows";
+import { buildPdfHtmlTemplate } from "@/lib/pdf-utils";
 import {
-  getDeepResearchStatus,
-  ValyuError,
-  valyuErrorStatus,
-} from "@/lib/valyu-workflows";
+  cleanBiomedicalText,
+  preprocessMarkdownText,
+} from "@/lib/markdown-utils";
 
 export const maxDuration = 300;
 
-function isAllowedPdfUrl(url: string): boolean {
+const isProduction = process.env.NODE_ENV === "production";
+let chromium: any = null;
+if (isProduction) {
   try {
-    const u = new URL(url);
-    if (u.protocol !== "https:") return false;
-    const host = u.hostname.toLowerCase();
-    return (
-      host.endsWith(".valyu.ai") ||
-      host.endsWith(".storage.valyu.ai") ||
-      host.endsWith(".amazonaws.com") ||
-      host.endsWith(".s3.amazonaws.com")
-    );
+    chromium = require("@sparticuz/chromium");
   } catch {
-    return false;
+    /* fall back to local puppeteer */
   }
 }
 
+const sanitize = (s: string) =>
+  s
+    .replace(/[^a-z0-9]/gi, "_")
+    .toLowerCase()
+    .substring(0, 50);
+
+/**
+ * POST /api/reports/[reportId]/pdf - branded PDF of a completed report.
+ * Reuses the shared pdf template/puppeteer pipeline, but reports are plain
+ * markdown + tables (no charts/CSVs), so all the chart machinery is skipped.
+ */
 export async function POST(
-  request: Request,
+  req: Request,
   { params }: { params: Promise<{ reportId: string }> },
 ) {
-  const auth = await requireUser();
-  if (!auth.user) return auth.response;
-
-  const { reportId } = await params;
-
-  let body: any;
+  let browser: Browser | null = null;
   try {
-    body = await request.json();
-  } catch {
-    body = {};
-  }
-  const valyuAccessToken =
-    (typeof body.valyuAccessToken === "string"
-      ? body.valyuAccessToken
-      : undefined) ||
-    request.headers.get("x-valyu-access-token") ||
-    undefined;
+    const { reportId } = await params;
+    const body = await req.json().catch(() => ({}));
+    const valyuAccessToken: string | undefined = body?.valyuAccessToken;
+    if (!isSelfHostedMode() && !valyuAccessToken) {
+      return NextResponse.json({ error: "AUTH_REQUIRED" }, { status: 401 });
+    }
 
-  try {
     const status = await getDeepResearchStatus(reportId, { valyuAccessToken });
-
-    if (status.status !== "completed") {
+    const report = statusToDTO(reportId, status);
+    if (report.status !== "completed" || !report.output) {
       return NextResponse.json(
-        { error: "Report is still being generated." },
-        { status: 409 },
+        { error: "Report is not ready" },
+        { status: 400 },
       );
     }
 
-    if (!status.pdfUrl || !isAllowedPdfUrl(status.pdfUrl)) {
-      return NextResponse.json(
-        { error: "PDF is not available for this report." },
-        { status: 404 },
-      );
-    }
+    const content = preprocessMarkdownText(cleanBiomedicalText(report.output));
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), 30000);
+    const logoPath = path.join(process.cwd(), "public", "valyu.svg");
+    const logoSvg = fs.readFileSync(logoPath, "utf-8");
+    const logoDataUrl = `data:image/svg+xml;base64,${Buffer.from(logoSvg).toString("base64")}`;
 
-    let pdfRes: Response;
-    try {
-      pdfRes = await fetch(status.pdfUrl, { signal: controller.signal });
-    } finally {
-      clearTimeout(timeout);
-    }
+    const html = buildPdfHtmlTemplate({
+      title: report.title || "Research Report",
+      content,
+      citations: [],
+      logoDataUrl,
+    });
 
-    if (
-      !pdfRes.ok ||
-      pdfRes.headers.get("content-type")?.includes("text/html")
-    ) {
-      return NextResponse.json(
-        { error: "Failed to fetch PDF from Valyu." },
-        { status: 502 },
-      );
-    }
+    browser =
+      isProduction && chromium
+        ? await puppeteer.launch({
+            args: chromium.args,
+            defaultViewport: chromium.defaultViewport,
+            executablePath: await chromium.executablePath(),
+            headless: chromium.headless,
+          })
+        : await puppeteer.launch({
+            headless: true,
+            args: [
+              "--no-sandbox",
+              "--disable-setuid-sandbox",
+              "--disable-dev-shm-usage",
+            ],
+            executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+          });
 
-    const blob = await pdfRes.blob();
-    const filename = (status.title || "report")
-      .replace(/[^a-z0-9]/gi, "_")
-      .toLowerCase();
+    const page = await browser.newPage();
+    await page.emulateMediaType("print");
+    await page.setContent(html, { waitUntil: "networkidle0" });
+    await new Promise((r) => setTimeout(r, 1000));
 
-    return new NextResponse(blob, {
+    const pdf = await page.pdf({
+      format: "A4",
+      printBackground: true,
+      margin: { top: "2cm", bottom: "3cm" },
+      displayHeaderFooter: true,
+      footerTemplate: `
+        <div style="font-size:9px;color:#6b7280;text-align:center;width:100%;padding-top:10px;border-top:1px solid #e5e7eb;">
+          <span style="margin-right:20px;">Valyu</span>
+          <span style="margin-right:20px;">CONFIDENTIAL</span>
+          <span class="pageNumber"></span> of <span class="totalPages"></span>
+        </div>`,
+    });
+    await page.close();
+
+    return new NextResponse(Buffer.from(pdf), {
       headers: {
         "Content-Type": "application/pdf",
-        "Content-Disposition": `attachment; filename="${filename}.pdf"`,
+        "Content-Disposition": `attachment; filename="${sanitize(report.title || "report")}.pdf"`,
       },
     });
-  } catch (e) {
-    if (e instanceof ValyuError) {
-      return NextResponse.json(
-        { error: e.message },
-        { status: valyuErrorStatus(e) },
-      );
-    }
+  } catch (error: any) {
     return NextResponse.json(
-      { error: e instanceof Error ? e.message : "PDF export failed" },
+      { error: "Failed to generate PDF", details: error?.message },
       { status: 500 },
     );
+  } finally {
+    if (browser) await browser.close();
   }
 }

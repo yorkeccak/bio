@@ -178,6 +178,36 @@
   border-color: rgb(156, 163, 175) !important;
 }
 
+/* Keep generated reports usable on narrow screens. */
+.prose {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+.prose pre,
+.prose table {
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.prose code {
+  overflow-wrap: break-word;
+  word-break: break-all;
+}
+
+.prose img {
+  max-width: 100%;
+  height: auto;
+}
+
+@media (min-width: 768px) {
+  html.has-top-banner .main-content-shell {
+    padding-top: calc(var(--top-banner-h, 3rem) + 0.75rem);
+  }
+}
+
 /* Improve readability in prose blocks */
 .prose .katex {
   color: inherit;
@@ -194,4 +224,3 @@
   background: rgba(255, 255, 255, 0.05);
   border-color: rgba(255, 255, 255, 0.1);
 }
-

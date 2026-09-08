@@ -162,7 +162,7 @@ export function WorkflowBrowser({
 
   return (
     <div>
-      {/* Lens filter — segmented control */}
+      {/* Lens filter - segmented control */}
       <div className="mb-6 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <div className="inline-flex items-center gap-1 rounded-2xl border border-border bg-muted p-1">
           {DOMAINS.map((d) => {
@@ -335,7 +335,7 @@ function RunPanel({
 
   const deriveTitle = () => {
     const first = workflow.variables.find((v) => v.required && values[v.key]);
-    const suffix = first ? ` — ${values[first.key]}` : "";
+    const suffix = first ? ` - ${values[first.key]}` : "";
     return `${workflow.title}${suffix}`;
   };
 

@@ -20,7 +20,7 @@ export function ReportDrawer({
       headerRight={
         reportId ? (
           <Link
-            href={`/reports?research=${reportId}`}
+            href={`/reports/${reportId}`}
             className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground"
           >
             <Maximize2 className="h-3.5 w-3.5" /> Open full page
