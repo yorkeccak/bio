@@ -265,6 +265,13 @@ export const useAuthStore = create<AuthStore>()(
             user: null,
           });
 
+          // Announce it here as well as in the SIGNED_OUT handler below: in
+          // self-hosted mode the Supabase client is a stub that never emits
+          // auth events, so this is the only signal listeners would get.
+          if (typeof window !== 'undefined') {
+            window.dispatchEvent(new CustomEvent('auth:signout'));
+          }
+
           return result;
         } catch (error) {
           return { error };
