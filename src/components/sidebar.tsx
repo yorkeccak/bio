@@ -10,8 +10,8 @@ import { createClient } from '@/utils/supabase/client-wrapper';
 import {
   MessageSquare,
   MessagesSquare,
-  MessageCirclePlus,
   History,
+  FileText,
   Settings,
   LogOut,
   Trash2,
@@ -27,6 +27,8 @@ import { SettingsModal } from '@/components/user/settings-modal';
 import { SubscriptionModal } from '@/components/user/subscription-modal';
 import { useSubscription } from '@/hooks/use-subscription';
 import { EnterpriseContactModal } from '@/components/enterprise/enterprise-contact-modal';
+import { apiListReports } from '@/lib/report-client';
+import { isTerminal } from '@/lib/reports';
 
 interface SidebarProps {
   currentSessionId?: string;
@@ -164,19 +166,14 @@ export function Sidebar({
       return;
     }
 
-    // If on other pages, warn before leaving
-    const confirmed = window.confirm(
-      'Leave this page? Your current session will be saved, but any unsaved changes will be lost.'
-    );
-
-    if (confirmed) {
-      // Only close sidebar if not in alwaysOpen mode
-      if (!alwaysOpen) {
-        setIsOpen(false);
-      }
-      setShowHistory(false);
-      router.push('/');
+    // Anywhere else (reports, legal pages) there is nothing to lose — the only
+    // surface with unsaved work is an in-progress chat, and that is handled by
+    // the guard above. Just go home.
+    if (!alwaysOpen) {
+      setIsOpen(false);
     }
+    setShowHistory(false);
+    router.push('/');
   };
 
   const handleViewUsage = async () => {
@@ -201,6 +198,12 @@ export function Sidebar({
   // Get subscription status from database
   const subscription = useSubscription();
   const { isAuthenticated } = subscription;
+  const { data: reportCount = 0 } = useQuery({
+    queryKey: ['reports', 'count'],
+    queryFn: async () => (await apiListReports()).filter((r) => isTerminal(r.status)).length,
+    enabled: !!user && !!isAuthenticated,
+    refetchInterval: 15000,
+  });
 
   return (
     <>
@@ -280,6 +283,20 @@ export function Sidebar({
               {/* Divider */}
               <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent" />
 
+              {/* Reports */}
+              <div className="relative group/tooltip">
+                <button
+                  onClick={() => router.push('/reports')}
+                  className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95 relative"
+                >
+                  <FileText className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
+                  {reportCount > 0 ? <span className="absolute -top-1 -right-1 h-4 min-w-4 rounded-full bg-blue-600 px-1 text-[10px] leading-4 text-white">{reportCount}</span> : null}
+                </button>
+                <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
+                  Reports
+                </div>
+              </div>
+
               {/* Logo */}
               <div className="relative group/tooltip">
                 <button
@@ -302,22 +319,7 @@ export function Sidebar({
               {/* Divider */}
               <div className="w-10 h-px bg-gradient-to-r from-transparent via-gray-300 dark:via-gray-600 to-transparent" />
 
-              {/* New Chat */}
-              {user && (
-                <div className="relative group/tooltip">
-                  <button
-                    onClick={handleNewChat}
-                    className="w-12 h-12 flex items-center justify-center hover:bg-gray-100 dark:hover:bg-gray-800 rounded-[20px] transition-all duration-200 group hover:scale-110 active:scale-95"
-                  >
-                    <MessageCirclePlus className="h-6 w-6 text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-gray-100 transition-colors" />
-                  </button>
-                  <div className="absolute left-full ml-3 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 text-sm font-medium rounded-lg opacity-0 group-hover/tooltip:opacity-100 pointer-events-none transition-opacity whitespace-nowrap z-50">
-                    New Chat
-                  </div>
-                </div>
-              )}
-
-                      {/* History */}
+              {/* History */}
               <div className="relative group/tooltip">
                 <button
                   onClick={() => {

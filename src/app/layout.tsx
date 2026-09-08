@@ -7,10 +7,12 @@ import { Analytics } from '@vercel/analytics/next';
 import { AuthInitializer } from "@/components/auth/auth-initializer";
 import { QueryProvider } from "@/components/query-provider";
 import { ThemeProvider } from "@/components/theme-provider";
+import { SignOutRedirect } from "@/components/auth/signout-redirect";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { logEnvironmentStatus } from "@/lib/env-validation";
 import { ProviderSelector } from "@/components/providers/provider-selector";
 import { MigrationBanner } from "@/components/migration-banner";
+import { ResearchNotifications } from "@/components/research/research-notifications";
 const geistSans = Geist({
   variable: "--font-geist-sans",
   subsets: ["latin"],
@@ -174,6 +176,8 @@ export default function RootLayout({
                   <MissingKeysDialog />
                   <MigrationBanner />
                   <ProviderSelector />
+                  <ResearchNotifications />
+                  <SignOutRedirect />
                   {children}
                   <Analytics />
                 </OllamaProvider>
