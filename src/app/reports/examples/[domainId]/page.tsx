@@ -19,8 +19,8 @@ export default function ExampleReportPage({
     <div className="min-h-screen bg-background flex overflow-x-hidden">
       <Sidebar
         currentSessionId={undefined}
-        onSessionSelect={(id: string) => router.push(`/chat?chatId=${id}`)}
-        onNewChat={() => router.push("/chat")}
+        onSessionSelect={(id: string) => router.push(`/?research=${id}`)}
+        onNewChat={() => router.push("/")}
         hasMessages={false}
       />
 

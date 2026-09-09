@@ -6,16 +6,20 @@ import { useAuthStore } from '@/lib/stores/use-auth-store';
 
 export function ThemeSelector() {
   const { setTheme, theme } = useTheme();
-  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
-  const hasSubscription = !!valyuAccessToken;
+  const { user } = useAuthStore();
+
+  // In valyu mode, require sign-in for theme switching
+  // In self-hosted mode, always allow
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
+  const hasAccess = isSelfHosted || !!user;
 
   return (
     <ThemeSwitcher
       value={theme as 'light' | 'dark' | 'system'}
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"
-      requiresSubscription={true}
-      hasSubscription={hasSubscription}
+      requiresSubscription={!isSelfHosted}
+      hasSubscription={hasAccess}
     />
   );
 }
@@ -28,9 +32,10 @@ export function CompactThemeSelector({
   sessionId?: string;
 }) {
   const { setTheme, theme } = useTheme();
-  const user = useAuthStore((state) => state.user);
-  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
-  const hasSubscription = !!valyuAccessToken;
+  const { user } = useAuthStore();
+
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
+  const hasAccess = isSelfHosted || !!user;
 
   return (
     <ThemeSwitcher
@@ -38,28 +43,30 @@ export function CompactThemeSelector({
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"
       className="h-8 scale-75"
-      requiresSubscription={true}
-      hasSubscription={hasSubscription}
+      requiresSubscription={!isSelfHosted}
+      hasSubscription={hasAccess}
       onUpgradeClick={onUpgradeClick}
       userId={user?.id}
       sessionId={sessionId}
-      tier={valyuAccessToken ? 'authenticated' : 'anonymous'}
+      tier={isSelfHosted ? 'unlimited' : (user ? 'valyu' : 'anonymous')}
     />
   );
 }
 
 export function ThemeMenuItem() {
   const { setTheme, theme } = useTheme();
-  const valyuAccessToken = useAuthStore((state) => state.valyuAccessToken);
-  const hasSubscription = !!valyuAccessToken;
+  const { user } = useAuthStore();
+
+  const isSelfHosted = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
+  const hasAccess = isSelfHosted || !!user;
 
   return (
     <ThemeSwitcher
       value={theme as 'light' | 'dark' | 'system'}
       onChange={(newTheme) => setTheme(newTheme)}
       defaultValue="light"
-      requiresSubscription={true}
-      hasSubscription={hasSubscription}
+      requiresSubscription={!isSelfHosted}
+      hasSubscription={hasAccess}
     />
   );
 }

@@ -5,9 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import { X } from "lucide-react";
 
 /**
- * Generic right slide-in panel. Wide (reports carry big tables), dims the page
- * behind it, closes on backdrop click / Escape / X, and locks body scroll while
- * open.
+ * Generic right slide-in panel. Wide (content has big tables), dims the page
+ * behind it, closes on backdrop click / Escape / X, locks body scroll.
+ * Shared chrome for the report and example-report drawers.
  */
 export function SlideOver({
   open,
@@ -38,7 +38,7 @@ export function SlideOver({
       {open && (
         <div className="fixed inset-0 z-50">
           <motion.div
-            className="absolute inset-0 bg-black/30 backdrop-blur-[1px]"
+            className="absolute inset-0 bg-foreground/30 backdrop-blur-[1px]"
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
@@ -46,7 +46,7 @@ export function SlideOver({
             onClick={onClose}
           />
           <motion.div
-            className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col bg-[#F5F5F5] shadow-2xl dark:bg-gray-950"
+            className="absolute right-0 top-0 flex h-full w-full max-w-3xl flex-col bg-background shadow-2xl"
             initial={{ x: "100%" }}
             animate={{ x: 0 }}
             exit={{ x: "100%" }}

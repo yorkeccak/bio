@@ -7,69 +7,70 @@
 
 # Bio
 
-Try the hosted version [here](https://bio.valyu.ai) 🙌  
+Try the hosted version [here](https://bio.valyu.ai) 🙌
 
 Then fork and get building...
 
-> **Enterprise-grade biomedical research behind a chat interface** - Access PubMed, clinical trials, FDA drug labels, and run complex Python analyses through natural language. Powered by specialized biomedical data APIs.
+> **Enterprise-grade biomedical deep research** - Pick a life sciences workflow, fill in a few variables, and get back a cited research report with deliverables. Powered by Valyu DeepResearch over PubMed, ClinicalTrials.gov, FDA drug labels, patents, and the open web.
 
 ![Bio](public/bio-screenshot.png)
 
 ## Why Bio?
 
-Traditional biomedical research and data is fragmented across dozens of databases and platforms. Bio changes everything by providing:
+Biomedical evidence is fragmented across dozens of databases, and stitching it together by hand is where the days go. Bio runs the whole search-read-synthesise loop for you:
 
-- **Comprehensive Medical Data** - PubMed articles, ClinicalTrials.gov data, FDA drug labels, and more
-- **One Unified Search** - Powered by Valyu's specialized biomedical data API
-- **Advanced Analytics** - Execute Python code in secure Daytona sandboxes for statistical analysis, pharmacokinetic modeling, and custom calculations
-- **Interactive Visualizations** - Beautiful charts and dashboards for clinical data
-- **Real-Time Intelligence** - Web search integration for breaking medical news
-- **Local AI Models** - Run with Ollama or LM Studio for unlimited, private queries using your own hardware
-- **Natural Language** - Just ask questions like you would to a colleague
+- **Prebuilt life sciences workflows** - Competitive landscapes, clinical readouts, regulatory precedent, and business development scans, each with typed inputs instead of a blank prompt box
+- **Comprehensive biomedical data** - PubMed articles, ClinicalTrials.gov records, FDA drug labels, patents, and more through Valyu's unified API
+- **Cited reports** - Every claim carries an inline citation that resolves to the underlying source
+- **Deliverables** - Structured artifacts alongside the narrative, plus PDF export
+- **Example reports** - Real finished reports per domain, so you can see the output before spending a credit
+- **Self-hostable** - Local SQLite, no authentication, no rate limits
 
 ## Key Features
 
-### Powerful Biomedical Tools
+### Deep research reports
 
-- **PubMed & ArXiv Search** - Access to millions of scientific papers and biomedical research
-- **Clinical Trials Database** - Search ClinicalTrials.gov for active and completed trials
-- **FDA Drug Labels** - Access comprehensive drug information from DailyMed
-- **Drug Information** - Detailed medication data, warnings, and contraindications
-- **Interactive Charts** - Visualize clinical data, drug efficacy, patient outcomes
-- **Python Code Execution** - Run pharmacokinetic calculations, statistical analyses, and ML models
+- **Workflow browser** - Browse the life sciences workflow catalog by lens: Pipeline & Assets, Clinical, Regulatory, and Business Development
+- **Three research modes** - `fast`, `standard`, and `heavy`, trading depth against turnaround time
+- **Live activity feed** - Watch the searches, reads, and reasoning steps as the report is built
+- **Report history** - Every report is stored and re-openable, with cancel and sync controls while a run is in flight
 
-### Advanced Tool Calling
+### Reading and sharing
 
-- **Python Code Execution** - Run complex biomedical calculations, statistical tests, and data analysis
-- **Interactive Charts** - Create publication-ready visualizations of clinical data
-- **Multi-Source Research** - Automatically aggregates data from multiple biomedical sources
-- **Export & Share** - Download results, share analyses, and collaborate
+- **Inline citations** - Hover any marker for the source title, date, and link
+- **Images and deliverables** - Charts and structured outputs rendered next to the report body
+- **PDF export** - Server-rendered PDF of any completed report
+- **Share links** - Send a report to a colleague or post it
+
+### Example reports
+
+Each domain ships with a seeded example report so the app is useful before you have run anything yourself. They render through the same report view as live output.
 
 ## Quick Start (Self-Hosted)
 
 Self-hosted mode is the recommended way to run Bio. It provides a complete local environment with:
+
 - **No authentication required** - Auto-login as dev user
 - **Local SQLite database** - No external database setup needed
-- **Unlimited queries** - No rate limits
-- **Ollama/LM Studio support** - Use local LLMs for privacy and unlimited usage
+- **No rate limits** - Credits are handled by your own Valyu API key
 
 ### Prerequisites
 
 - Node.js 18+
 - pnpm (`npm install -g pnpm`)
 - Valyu API key (get one at [platform.valyu.ai](https://platform.valyu.ai))
-- [Daytona](https://www.daytona.io) API key - used for secure sandboxed Python code execution (get one at [app.daytona.io](https://app.daytona.io))
-- [Ollama](https://ollama.com) or [LM Studio](https://lmstudio.ai) installed (optional but recommended)
 
 ### Installation
 
 1. **Clone the repository**
+
    ```bash
    git clone https://github.com/yorkeccak/bio.git
    cd bio
    ```
 
 2. **Install dependencies**
+
    ```bash
    pnpm install
    ```
@@ -85,20 +86,16 @@ Self-hosted mode is the recommended way to run Bio. It provides a complete local
    # Valyu API Configuration (Required)
    VALYU_API_KEY=your-valyu-api-key
 
-   # Daytona Configuration (Required for Python execution)
-   DAYTONA_API_KEY=your-daytona-api-key
-   DAYTONA_API_URL=https://api.daytona.io
-   DAYTONA_TARGET=latest
+   # OpenAI Configuration (Optional - used to suggest report deliverables)
+   OPENAI_API_KEY=your-openai-api-key
 
-   # Local LLM Configuration (Optional - for unlimited, private queries)
+   # Local model servers (Optional - powers the local model status indicator)
    OLLAMA_BASE_URL=http://localhost:11434   # Default Ollama URL
    LMSTUDIO_BASE_URL=http://localhost:1234  # Default LM Studio URL
-
-   # OpenAI Configuration (Optional - fallback if local models unavailable)
-   OPENAI_API_KEY=your-openai-api-key
    ```
 
 4. **Run the development server**
+
    ```bash
    pnpm dev
    ```
@@ -113,12 +110,11 @@ Self-hosted mode is the recommended way to run Bio. It provides a complete local
 
 ### What is Self-Hosted Mode?
 
-Self-hosted mode provides a complete local environment without any external dependencies beyond the core APIs (Valyu, Daytona). It's perfect for:
+Self-hosted mode provides a complete local environment without any external dependencies beyond the Valyu API. It's perfect for:
 
 - **Local Development** - No Supabase setup required
-- **Offline Work** - All data stored locally in SQLite
-- **Testing Features** - Unlimited queries without billing
-- **Privacy** - Use local Ollama models, no cloud LLM needed
+- **Testing Features** - No auth wall between you and the app
+- **Privacy** - Reports and user data stay on your machine
 - **Quick Prototyping** - No authentication or rate limits
 
 ### How It Works
@@ -127,50 +123,21 @@ When `NEXT_PUBLIC_APP_MODE=self-hosted`:
 
 1. **Local SQLite Database** (`/.local-data/dev.db`)
    - Automatically created on first run
-   - Stores chat sessions, messages, charts, and CSVs
-   - Full schema matching production tables
+   - Stores the local user record
    - Easy to inspect with `sqlite3 .local-data/dev.db`
 
 2. **Mock Authentication**
    - Auto-login as dev user (`dev@localhost`)
    - No sign-up/sign-in required
-   - Unlimited tier access with all features
 
 3. **No Rate Limits**
-   - Unlimited chat queries
-   - No usage tracking
-   - No billing integration
+   - Usage is governed by the credits on your own Valyu API key
 
-4. **LLM Selection**
-   - **Ollama models** (if installed) - Used first, unlimited and free
-   - **LM Studio models** (if installed) - Alternative local option with GUI
-   - **OpenAI** (if API key provided) - Fallback if no local models available
-   - See local models indicator in top-right corner with provider switching
+### Local Model Servers (Optional)
 
-### Setting Up Ollama (Recommended)
+Bio detects [Ollama](https://ollama.com) and [LM Studio](https://lmstudio.ai) running on your machine and surfaces their status and available models in the top-right indicator.
 
-Ollama provides unlimited, private LLM inference on your local machine - completely free and runs offline!
-
-**Quick Setup:**
-
-1. **Download Ollama App**
-   - Visit [ollama.com](https://ollama.com) and download the app for your OS
-   - Install and open the Ollama app
-   - It runs in your menu bar (macOS) or system tray (Windows/Linux)
-
-2. **Download a Model**
-   - Open Ollama app and browse available models
-   - Download `qwen2.5:7b` (recommended - best for biomedical research with tool support)
-   - Or choose from: `llama3.1`, `mistral`, `deepseek-r1`
-   - That's it! Bio will automatically detect and use it
-
-3. **Use in Bio**
-   - Start the app in self-hosted mode
-   - Ollama status indicator appears in top-right corner
-   - Shows your available models
-   - Click to select which model to use
-
-**Terminal Setup (Advanced):**
+**Ollama:**
 
 ```bash
 # Install Ollama
@@ -181,62 +148,83 @@ curl -fsSL https://ollama.com/install.sh | sh  # Linux
 # Start Ollama service
 ollama serve
 
-# Download recommended models
-ollama pull qwen2.5:7b          # Recommended - excellent tool support
-ollama pull llama3.1:8b         # Alternative - good performance
+# Download a model
+ollama pull qwen2.5:7b
 ```
 
-### Setting Up LM Studio (Alternative)
-
-LM Studio provides a beautiful GUI for running local LLMs - perfect if you prefer visual interfaces over terminal commands!
+**LM Studio:**
 
 1. **Download LM Studio** from [lmstudio.ai](https://lmstudio.ai)
-2. **Download Models** - Search for `qwen/qwen3-14b` or `google/gemma-3-12b`
-3. **Start the Server** - Click LM Studio menu bar icon -> "Start Server on Port 1234..."
-4. **Configure Context Window** - Set to at least 8192 tokens (16384+ recommended)
+2. **Download a model** - Search for `qwen/qwen3-14b` or `google/gemma-3-12b`
+3. **Start the server** - Click the LM Studio menu bar icon -> "Start Server on Port 1234..."
+4. **Configure the context window** - Set to at least 8192 tokens (16384+ recommended)
 
 ### Managing Local Database
 
 **View Database:**
+
 ```bash
 sqlite3 .local-data/dev.db
 # Then run SQL queries
-SELECT * FROM chat_sessions;
-SELECT * FROM charts;
+SELECT * FROM users;
 ```
 
 **Reset Database:**
+
 ```bash
 rm -rf .local-data/
 # Database recreated on next app start
 ```
 
-## Example Queries
+## Valyu Mode (Optional)
 
-Try these powerful queries to see what Bio can do:
+Valyu mode adds hosted authentication and billing: users sign in with their Valyu account through OAuth, and research runs are charged against their Valyu credits rather than a shared API key.
 
-- "What are the latest clinical trials for CAR-T therapy in melanoma?"
-- "Find recent PubMed papers on CRISPR gene editing safety"
-- "Calculate the half-life of warfarin based on these concentrations"
-- "Search for drug interactions between metformin and lisinopril"
-- "Analyze Phase 3 clinical trial data for immunotherapy drugs"
-- "Create a chart comparing efficacy rates of different COVID-19 vaccines"
+### Prerequisites for Valyu Mode
 
-**With Local Models (Ollama/LM Studio):**
-- Run unlimited queries without API costs
-- Keep all your medical research completely private
-- Perfect for sensitive patient data analysis
-- Choose your preferred interface: terminal (Ollama) or GUI (LM Studio)
+- Valyu OAuth credentials (contact contact@valyu.ai)
+- A Supabase project for your app's own user data
+
+### Valyu Mode Configuration
+
+```env
+# Enable Valyu Mode
+NEXT_PUBLIC_APP_MODE=valyu
+
+# Valyu OAuth Credentials (contact contact@valyu.ai)
+NEXT_PUBLIC_VALYU_SUPABASE_URL=https://your-valyu-supabase-url
+NEXT_PUBLIC_VALYU_CLIENT_ID=your-client-id
+VALYU_CLIENT_SECRET=your-client-secret
+VALYU_APP_URL=https://platform.valyu.ai
+
+# Your App's Supabase (for user data)
+NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Optional fallback key for anonymous traffic
+VALYU_API_KEY=your-valyu-api-key
+```
+
+## Example Reports
+
+Bio ships with a seeded example report for each life sciences lens:
+
+- **Pipeline & Assets** - Competitive landscape across a target class
+- **Clinical** - Trial landscape and readout analysis
+- **Regulatory** - Approval pathway and precedent scan
+- **Business Development** - Partnering and asset opportunity scan
+
+Open one from the reports page to see the report view, citations, and deliverables without running a workflow.
 
 ## Architecture
 
-- **Frontend**: Next.js 15 with App Router, Tailwind CSS, shadcn/ui
-- **AI**: OpenAI GPT-5.2 with function calling + Ollama/LM Studio for local models
-- **Data**: Valyu API for comprehensive biomedical data
-- **Code Execution**: Daytona sandboxes for secure Python execution
-- **Visualizations**: Recharts for interactive charts
-- **Real-time**: Streaming responses with Vercel AI SDK
-- **Local Models**: Ollama and LM Studio integration for private, unlimited queries
+- **Frontend**: Next.js 15 with App Router, Tailwind CSS v4, shadcn/ui
+- **Research**: Valyu DeepResearch workflows over biomedical and web sources
+- **Auth**: Valyu OAuth in valyu mode, local dev user in self-hosted mode
+- **Storage**: Supabase in valyu mode, SQLite via Drizzle in self-hosted mode
+- **PDF**: Puppeteer with `@sparticuz/chromium`
+- **Analytics**: PostHog and Vercel Analytics
 
 ## Deploy to Vercel
 
@@ -247,19 +235,16 @@ The quickest way to get Bio running in production:
 3. **Add environment variables** in Vercel project settings (Settings > Environment Variables):
    - `NEXT_PUBLIC_APP_MODE` = `self-hosted`
    - `VALYU_API_KEY` = your Valyu API key
-   - `DAYTONA_API_KEY` = your Daytona API key
-   - `OPENAI_API_KEY` = your OpenAI API key (required for cloud deployment since local models aren't available)
+   - `OPENAI_API_KEY` = your OpenAI API key (optional, for deliverable suggestions)
 4. **Deploy** - Vercel handles the rest
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyorkeccak%2Fbio&env=NEXT_PUBLIC_APP_MODE,VALYU_API_KEY,DAYTONA_API_KEY,OPENAI_API_KEY&envDescription=API%20keys%20needed%20for%20Bio&envLink=https%3A%2F%2Fgithub.com%2Fyorkeccak%2Fbio%23quick-start-self-hosted)
+[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/clone?repository-url=https%3A%2F%2Fgithub.com%2Fyorkeccak%2Fbio&env=NEXT_PUBLIC_APP_MODE,VALYU_API_KEY,OPENAI_API_KEY&envDescription=API%20keys%20needed%20for%20Bio&envLink=https%3A%2F%2Fgithub.com%2Fyorkeccak%2Fbio%23quick-start-self-hosted)
 
 ## Security
 
 - Secure API key management
-- Sandboxed code execution via Daytona
 - No storage of sensitive medical data
 - HTTPS encryption for all API calls
-- HIPAA-compliant architecture (when self-hosted)
 
 ## License
 
@@ -281,7 +266,6 @@ For bugs or feature requests, [open an issue](https://github.com/yorkeccak/bio/i
 ## Acknowledgments
 
 - Built with [Valyu](https://platform.valyu.ai) - The unified biomedical data API
-- Powered by [Daytona](https://daytona.io) - Secure code execution
 - UI components from [shadcn/ui](https://ui.shadcn.com)
 
 ---
