@@ -4,7 +4,7 @@ import { useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { validateCallback, exchangeCodeForTokens } from '@/lib/valyu-oauth';
-import { Loader2, AlertCircle, CheckCircle } from 'lucide-react';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 import { track } from '@vercel/analytics';
 
 type AuthStep = 'validating' | 'exchanging' | 'creating_session' | 'success' | 'error';
@@ -108,83 +108,43 @@ function ValyuAuthCompleteContent() {
   }, [searchParams, completeValyuAuth, router]);
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full mx-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
-          {/* Logo */}
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              Bio.
-            </h1>
-          </div>
-
-          {/* Status */}
-          {step === 'error' ? (
-            <div className="space-y-4">
-              <div className="w-16 h-16 mx-auto bg-red-100 dark:bg-red-900/30 rounded-full flex items-center justify-center">
-                <AlertCircle className="w-8 h-8 text-red-500" />
-              </div>
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                Authentication Failed
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                {error}
-              </p>
-              <button
-                onClick={() => router.push('/')}
-                className="mt-4 px-4 py-2 bg-gray-900 dark:bg-white text-white dark:text-gray-900 rounded-md hover:opacity-90 transition-opacity"
-              >
-                Return to App
-              </button>
+    <div className="min-h-screen flex items-center justify-center bg-background">
+      <div className="text-center space-y-4 p-8">
+        {step === 'error' ? (
+          <>
+            <div className="w-12 h-12 bg-destructive/10 rounded-full flex items-center justify-center mx-auto">
+              <AlertCircle className="w-6 h-6 text-destructive" />
             </div>
-          ) : step === 'success' ? (
-            <div className="space-y-4">
-              <div className="w-16 h-16 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
-                <CheckCircle className="w-8 h-8 text-green-500" />
-              </div>
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                Signed In Successfully
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Redirecting you to the app...
-              </p>
+            <h2 className="text-lg font-medium text-foreground">Authentication Failed</h2>
+            <p className="text-sm text-muted-foreground">{error}</p>
+            <button
+              onClick={() => router.push('/')}
+              className="mt-4 px-4 py-2 bg-primary text-primary-foreground rounded-md hover:opacity-90 transition-opacity"
+            >
+              Return to App
+            </button>
+          </>
+        ) : step === 'success' ? (
+          <>
+            <div className="w-12 h-12 bg-positive/10 rounded-full flex items-center justify-center mx-auto">
+              <CheckCircle className="w-6 h-6 text-positive" />
             </div>
-          ) : (
-            <div className="space-y-4">
-              <Loader2 className="w-8 h-8 mx-auto animate-spin text-gray-400" />
-              <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-                {step === 'validating' && 'Validating authentication...'}
-                {step === 'exchanging' && 'Completing sign in...'}
-                {step === 'creating_session' && 'Setting up your session...'}
-              </h2>
-              <p className="text-sm text-gray-500 dark:text-gray-400">
-                Please wait while we sign you in with Valyu.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function LoadingFallback() {
-  return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-md w-full mx-4">
-        <div className="bg-white dark:bg-gray-800 rounded-lg shadow-lg p-8 text-center">
-          <div className="mb-6">
-            <h1 className="text-2xl font-semibold text-gray-900 dark:text-white">
-              Bio.
-            </h1>
-          </div>
-          <div className="space-y-4">
-            <Loader2 className="w-8 h-8 mx-auto animate-spin text-gray-400" />
-            <h2 className="text-lg font-medium text-gray-900 dark:text-white">
-              Loading...
+            <h2 className="text-lg font-medium text-foreground">Signed In Successfully</h2>
+            <p className="text-sm text-muted-foreground">Redirecting you to the app...</p>
+          </>
+        ) : (
+          <>
+            <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto" />
+            <h2 className="text-lg font-medium text-foreground">
+              {step === 'validating' && 'Validating authentication...'}
+              {step === 'exchanging' && 'Completing sign in...'}
+              {step === 'creating_session' && 'Setting up your session...'}
             </h2>
-          </div>
-        </div>
+            <p className="text-sm text-muted-foreground">
+              Please wait while we sign you in with Valyu.
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
@@ -192,7 +152,13 @@ function LoadingFallback() {
 
 export default function ValyuAuthCompletePage() {
   return (
-    <Suspense fallback={<LoadingFallback />}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-background">
+          <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+        </div>
+      }
+    >
       <ValyuAuthCompleteContent />
     </Suspense>
   );

@@ -54,8 +54,10 @@ export function MissingKeysDialog() {
   const missingDaytona = !status.daytonaKeyPresent;
   const missingOpenAI = !status.openaiKeyPresent && !status.aiGatewayKeyPresent;
 
-  // Don't show if no API key issues
+  // Don't show if no API keys are missing
   if (!missingValyu && !missingDaytona && !missingOpenAI) return null;
+
+  const isSelfHostedMode = process.env.NEXT_PUBLIC_APP_MODE === 'self-hosted';
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -63,7 +65,10 @@ export function MissingKeysDialog() {
         <DialogHeader>
           <DialogTitle>Setup Required</DialogTitle>
           <DialogDescription>
-            This app requires API keys for full functionality. Some features are disabled until keys are added.
+            {isSelfHostedMode
+              ? "Configure API keys for full functionality."
+              : "This app requires API keys for full functionality. Some features are disabled until keys are added."
+            }
           </DialogDescription>
         </DialogHeader>
         <div className="space-y-3 text-sm">

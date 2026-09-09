@@ -126,7 +126,7 @@ export function Sidebar({
       setShowHistory(false);
       setShowMobileHistory(false);
       setShowMobileDrawer(false);
-      router.push(`/reports/${reportId}`);
+      router.push(`/?research=${reportId}`);
     },
     [router],
   );

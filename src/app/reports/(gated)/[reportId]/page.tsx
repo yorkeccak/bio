@@ -18,8 +18,9 @@ export default function ReportPage({
   return (
     <div className="flex min-h-screen overflow-x-hidden bg-background">
       <Sidebar
-        onSessionSelect={(id: string) => router.push(`/chat?chatId=${id}`)}
-        onNewChat={() => router.push("/chat")}
+        currentSessionId={undefined}
+        onSessionSelect={(id: string) => router.push(`/?research=${id}`)}
+        onNewChat={() => router.push("/")}
         hasMessages={false}
       />
       <div className="flex min-w-0 flex-1 flex-col pt-14 md:pt-0">

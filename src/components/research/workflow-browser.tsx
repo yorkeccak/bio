@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Loader2,
@@ -17,15 +17,25 @@ import {
   Microscope,
   Sparkles,
 } from "lucide-react";
-import { DOMAINS, MODES, LIFE_SCIENCES_VERTICAL } from "@/lib/domains";
+import {
+  DOMAINS,
+  MODES,
+  LIFE_SCIENCES_VERTICAL,
+  lensForSlug,
+} from "@/lib/domains";
 import { iconForDomain } from "@/lib/domain-icons";
 import type { WorkflowDTO, WorkflowVariable } from "@/lib/workflow-types";
 import { apiListWorkflows } from "@/lib/workflow-client";
 import { apiCreateReport } from "@/lib/report-client";
-import { ErrorNote } from "./error-note";
-import { requestNotifyPermission } from "./report-notify";
 import { getExample } from "@/lib/example-reports/registry";
 import { ExampleReportDrawer } from "./example-report-drawer";
+import { ErrorNote } from "./error-note";
+import { AuthModal } from "@/components/auth/auth-modal";
+
+/** True when an error message looks like a lapsed/absent session rather than a
+ * genuine failure - keep matching generic so we never leak internals. */
+const isAuthError = (message: string): boolean =>
+  /AUTH_REQUIRED|session expired|sign in|unauthor/i.test(message);
 
 const LS_KEY = "reports.lastDomain";
 
@@ -42,7 +52,8 @@ const deliverableLabels = (w: WorkflowDTO): string[] => {
   const seen = new Set<string>();
   const out: string[] = [];
   for (const d of w.deliverables ?? []) {
-    const label = DELIVERABLE_LABEL[d.type] ?? d.type?.toUpperCase().slice(0, 3);
+    const label =
+      DELIVERABLE_LABEL[d.type] ?? d.type?.toUpperCase().slice(0, 3);
     if (label && !seen.has(label)) {
       seen.add(label);
       out.push(label);
@@ -86,24 +97,31 @@ function ValyuBadge() {
  * Selecting one swaps the grid for a generated parameter form.
  */
 export function WorkflowBrowser({
-  onLaunched,
+  onOpenReport,
 }: {
-  onLaunched: (reportId: string) => void;
+  onOpenReport?: (reportId: string) => void;
 }) {
+  const router = useRouter();
   const queryClient = useQueryClient();
   const searchParams = useSearchParams();
 
   const [domain, setDomain] = useState<string>("all");
   const [selected, setSelected] = useState<WorkflowDTO | null>(null);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
+  const [openExampleDomain, setOpenExampleDomain] = useState<string | null>(
+    null,
+  );
   const [query, setQuery] = useState("");
-  const [openExampleDomain, setOpenExampleDomain] = useState<string | null>(null);
+  const [showAuthModal, setShowAuthModal] = useState(false);
 
-  // Deep link: /reports?workflow=<slug> opens that run panel once the catalog
-  // loads; /reports?domain=<id> picks a lens. Otherwise restore the last lens.
+  // Deep link from an example: /reports?workflow=<slug> → jump to its lens and
+  // auto-open the run panel once the catalog loads; /reports?domain=<id> picks
+  // a lens. Otherwise restore the last-used lens.
   useEffect(() => {
     const wf = searchParams.get("workflow");
     if (wf) {
+      const lens = lensForSlug(wf);
+      if (lens) setDomain(lens);
       setPendingSlug(wf);
       return;
     }
@@ -131,10 +149,13 @@ export function WorkflowBrowser({
     data: workflows = [],
     isLoading,
     error,
+    refetch,
+    isFetching,
   } = useQuery({
     queryKey: ["workflows", LIFE_SCIENCES_VERTICAL],
     queryFn: () => apiListWorkflows(LIFE_SCIENCES_VERTICAL),
     staleTime: 5 * 60 * 1000,
+    retry: 1,
   });
 
   const filtered = useMemo(() => {
@@ -143,9 +164,7 @@ export function WorkflowBrowser({
     // any slug we haven't grouped yet falls back into "All" only.
     const base =
       !lens || lens.id === "all"
-        ? [...workflows].sort(
-            (a, b) => Number(b.popular) - Number(a.popular),
-          )
+        ? [...workflows].sort((a, b) => Number(b.popular) - Number(a.popular))
         : workflows.filter((w) => lens.slugs.includes(w.slug));
     const q = query.trim().toLowerCase();
     if (!q) return base;
@@ -178,7 +197,6 @@ export function WorkflowBrowser({
               <button
                 key={d.id}
                 onClick={() => selectDomain(d.id)}
-                title={d.blurb}
                 className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-xl px-3 py-1.5 text-sm font-medium transition-all ${
                   active
                     ? "bg-card text-foreground shadow-sm"
@@ -200,10 +218,15 @@ export function WorkflowBrowser({
         <RunPanel
           workflow={selected}
           onBack={() => setSelected(null)}
+          onAuthRequired={() => setShowAuthModal(true)}
           onLaunched={(id) => {
             queryClient.invalidateQueries({ queryKey: ["reports", "history"] });
-            setSelected(null);
-            onLaunched(id);
+            if (onOpenReport) {
+              setSelected(null);
+              onOpenReport(id);
+            } else {
+              router.push(`/reports/${id}`);
+            }
           }}
         />
       ) : (
@@ -226,7 +249,10 @@ export function WorkflowBrowser({
               className="w-full text-left mb-3 p-4 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-colors flex items-center gap-4"
             >
               <div className="h-10 w-10 rounded-xl bg-muted border border-border flex items-center justify-center flex-shrink-0">
-                <Sparkles className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+                <Sparkles
+                  className="h-5 w-5 text-muted-foreground"
+                  strokeWidth={1.75}
+                />
               </div>
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2">
@@ -238,8 +264,11 @@ export function WorkflowBrowser({
                   {example.title}
                 </div>
                 <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                  See a finished {example.subject} report before you run your own
-                  {example.sources_count > 0 ? ` · ${example.sources_count} sources` : ""}
+                  See a finished {example.subject} report before you run your
+                  own
+                  {example.sources_count > 0
+                    ? ` · ${example.sources_count} sources`
+                    : ""}
                 </div>
               </div>
               <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
@@ -251,13 +280,28 @@ export function WorkflowBrowser({
               <Loader2 className="h-4 w-4 animate-spin" /> Loading workflows…
             </div>
           ) : error ? (
-            <div className="flex items-center gap-2 py-10 text-sm text-red-600">
-              <AlertCircle className="h-4 w-4" /> {(error as Error).message}
+            <div className="flex flex-col items-center gap-3 py-10 text-sm">
+              <div className="flex items-center gap-2 text-destructive">
+                <AlertCircle className="h-4 w-4" /> {(error as Error).message}
+              </div>
+              <button
+                onClick={() => refetch()}
+                disabled={isFetching}
+                className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-1.5 text-xs font-medium text-foreground hover:border-foreground/20 disabled:opacity-50"
+              >
+                {isFetching ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : null}
+                Try again
+              </button>
             </div>
           ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center rounded-2xl border border-dashed border-border px-6 py-14 text-center">
               <div className="mb-4 flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-muted">
-                <Microscope className="h-6 w-6 text-muted-foreground" strokeWidth={1.5} />
+                <Microscope
+                  className="h-6 w-6 text-muted-foreground"
+                  strokeWidth={1.5}
+                />
               </div>
               <h3 className="text-[15px] font-semibold text-foreground">
                 {query
@@ -265,8 +309,9 @@ export function WorkflowBrowser({
                   : "No workflows in this lens yet"}
               </h3>
               <p className="mt-1.5 max-w-sm text-sm leading-relaxed text-muted-foreground">
-                Workflows are Valyu&apos;s prebuilt research templates. Don&apos;t see the
-                one you need? Build your own on the Valyu platform and run it right here.
+                Workflows are Valyu&apos;s prebuilt research templates.
+                Don&apos;t see the one you need? Build your own on the Valyu
+                platform and run it right here.
               </p>
               <a
                 href="https://platform.valyu.ai/user/workflows"
@@ -281,9 +326,7 @@ export function WorkflowBrowser({
           ) : (
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               {filtered.map((w) => {
-                const Icon = iconForDomain(
-                  DOMAINS.find((d) => d.slugs.includes(w.slug))?.id,
-                );
+                const Icon = iconForDomain(lensForSlug(w.slug));
                 const deliverables = deliverableLabels(w);
                 return (
                   <button
@@ -293,7 +336,10 @@ export function WorkflowBrowser({
                   >
                     <div className="flex items-center gap-3">
                       <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl border border-border bg-muted">
-                        <Icon className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+                        <Icon
+                          className="h-5 w-5 text-muted-foreground"
+                          strokeWidth={1.75}
+                        />
                       </div>
                       <div className="flex min-w-0 items-center gap-2">
                         <h3 className="truncate text-[15px] font-semibold text-foreground">
@@ -340,6 +386,8 @@ export function WorkflowBrowser({
           setPendingSlug(slug);
         }}
       />
+
+      <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </div>
   );
 }
@@ -348,10 +396,12 @@ function RunPanel({
   workflow,
   onBack,
   onLaunched,
+  onAuthRequired,
 }: {
   workflow: WorkflowDTO;
   onBack: () => void;
   onLaunched: (reportId: string) => void;
+  onAuthRequired: () => void;
 }) {
   const [values, setValues] = useState<Record<string, string>>({});
   const [mode, setMode] = useState(workflow.recommended_mode || "standard");
@@ -385,7 +435,6 @@ function RunPanel({
     if (!requiredMet || launching) return;
     setLaunching(true);
     setError(null);
-    void requestNotifyPermission();
     try {
       const report = await apiCreateReport({
         workflow_slug: workflow.slug,
@@ -396,7 +445,14 @@ function RunPanel({
       });
       onLaunched(report.id);
     } catch (e) {
-      setError((e as Error).message);
+      const message = (e as Error).message;
+      // A lapsed session isn't a failed launch - prompt re-auth instead of
+      // surfacing a raw error string.
+      if (isAuthError(message)) {
+        onAuthRequired();
+      } else {
+        setError(message);
+      }
       setLaunching(false);
     }
   };
@@ -450,7 +506,7 @@ function RunPanel({
             >
               <span className="font-medium text-foreground">{m.label}</span>
               {workflow.recommended_mode === m.id && (
-                <span className="ml-1.5 text-[10px] text-emerald-600">rec</span>
+                <span className="ml-1.5 text-[10px] text-primary">rec</span>
               )}
             </button>
           ))}
@@ -489,14 +545,16 @@ function Field({
   const base =
     "w-full rounded-xl border border-border bg-transparent px-3.5 py-2.5 text-sm text-foreground outline-none focus:border-foreground/40";
   const hint = variable.examples?.length
-    ? `e.g. ${variable.examples.slice(0, 2).join(" · ")}`
+    ? `e.g. ${variable.examples.slice(0, 3).join(", ")}`
     : variable.help;
 
   return (
     <div>
       <label className="mb-1 block text-xs font-medium text-foreground">
         {variable.label}
-        {variable.required && <span className="ml-0.5 text-red-400">*</span>}
+        {variable.required && (
+          <span className="ml-0.5 text-destructive">*</span>
+        )}
       </label>
       {variable.type === "textarea" ? (
         <textarea
@@ -534,7 +592,9 @@ function Field({
           className={base}
         />
       )}
-      {hint && <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>}
+      {hint && (
+        <div className="mt-1 text-[11px] text-muted-foreground">{hint}</div>
+      )}
     </div>
   );
 }

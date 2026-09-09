@@ -1,39 +1,43 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import {
   Loader2,
   AlertCircle,
   Clock,
-  ExternalLink,
   Download,
-  XCircle,
+  ExternalLink,
 } from "lucide-react";
 import { CitationTextRenderer } from "@/components/citation-text-renderer";
-import { AuthModal } from "@/components/auth/auth-modal";
 import { ActivityFeed } from "./activity-feed";
-import {
-  apiCancelReport,
-  apiDownloadReportPdf,
-  apiSyncReport,
-} from "@/lib/report-client";
+import { ErrorNote } from "./error-note";
+import { AuthModal } from "@/components/auth/auth-modal";
+import { apiSyncReport, apiDownloadReportPdf } from "@/lib/report-client";
+import { isTerminal } from "@/lib/reports";
 import {
   buildCitationMapFromSources,
   extractMarkdownLinkCitations,
-  mergeCitations,
 } from "@/lib/citation-utils";
-import { isTerminal } from "@/lib/reports";
 import { ChartGallery, DeliverablesList } from "./report-artifacts";
-import { ErrorNote } from "./error-note";
 import { markSeen } from "./report-notify";
 
-const stripLeadingH1 = (md: unknown): string =>
-  typeof md === "string" ? md.replace(/^\s*#\s+.+\n+/, "") : "";
 const cap = (s: string) => (s ? s[0].toUpperCase() + s.slice(1) : s);
-const fmtElapsed = (ms: number) =>
-  `${Math.floor(Math.max(0, Math.floor(ms / 1000)) / 60)}:${String(Math.max(0, Math.floor(ms / 1000)) % 60).padStart(2, "0")}`;
-function useElapsed(startIso: string | null | undefined, active: boolean) {
+
+/** Reports lead with their title as an H1, which the view already renders in
+ *  the header - strip that leading H1 from the body to avoid a duplicate title. */
+const stripLeadingH1 = (md: string) => md.replace(/^\s*#\s+.+\n+/, "");
+
+const fmtElapsed = (ms: number) => {
+  const s = Math.max(0, Math.floor(ms / 1000));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+/** Live mm:ss elapsed since `startIso`, ticking while `active`. */
+function useElapsed(
+  startIso: string | null | undefined,
+  active: boolean,
+): string | null {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
     if (!active) return;
@@ -46,96 +50,85 @@ function useElapsed(startIso: string | null | undefined, active: boolean) {
 }
 
 function ProgressBar({ value, max }: { value: number; max: number }) {
-  const percent = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
   return (
     <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
       <div
-        className="h-full rounded-full bg-primary transition-[width] duration-700"
-        style={{ width: `${percent}%` }}
+        className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+        style={{ width: `${pct}%` }}
       />
     </div>
   );
 }
 
+/**
+ * Renders a single report's content (header, live status, body). Layout-
+ * agnostic - used by both the full-page route and the slide-in drawer. Owns
+ * the resumable poll (sync on mount, refetch while running, stop on terminal).
+ */
 export function ReportView({ reportId }: { reportId: string }) {
-  const queryClient = useQueryClient();
   const [downloading, setDownloading] = useState(false);
-  const [pdfError, setPdfError] = useState<string | null>(null);
-  const [cancelRequested, setCancelRequested] = useState(false);
-  const [cancelError, setCancelError] = useState<string | null>(null);
   const [showAuthModal, setShowAuthModal] = useState(false);
+
   const { data, isLoading, error } = useQuery({
     queryKey: ["report", reportId],
     queryFn: () => apiSyncReport(reportId),
-    refetchInterval: (query) =>
-      query.state.data?.authExpired ||
-      isTerminal(query.state.data?.report?.status ?? "")
-        ? false
-        : 4000,
+    refetchInterval: (query) => {
+      const data = query.state.data;
+      // Stop polling once we need re-auth - the token is dead, retrying is
+      // pointless until the user signs in again.
+      if (data?.authExpired) return false;
+      const status = data?.report?.status;
+      return status && isTerminal(status) ? false : 4000;
+    },
     refetchOnWindowFocus: true,
   });
+
   const report = data?.report;
   const progress = data?.progress;
+  // Hook must run unconditionally (before the early returns below).
   const elapsed = useElapsed(
     report?.created_at,
     !!report && !isTerminal(report.status),
   );
+
+  // Viewing a finished run acknowledges it (clears the sidebar badge).
   useEffect(() => {
     if (report && isTerminal(report.status)) markSeen([report.id]);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [report?.id, report?.status]);
 
-  /**
-   * Cancelling is best-effort upstream: Valyu may take a beat to actually stop
-   * the task, so the button latches into a "Cancelling…" state and the existing
-   * poll carries it the rest of the way to a terminal status.
-   */
-  const handleCancel = async () => {
-    if (!report || cancelRequested) return;
-    const ok = window.confirm(
-      "Cancel this research run? Work done so far will be discarded.",
-    );
-    if (!ok) return;
-    setCancelRequested(true);
-    setCancelError(null);
-    try {
-      await apiCancelReport(report.id);
-      // Refetch through the sync route rather than trusting the cancel
-      // response: it rebuilds the DTO from a minimal base and would drop the
-      // workflow slug and params this view renders from.
-      await queryClient.invalidateQueries({ queryKey: ["report", report.id] });
-      queryClient.invalidateQueries({ queryKey: ["reports", "history"] });
-    } catch (e) {
-      setCancelError((e as Error).message);
-      setCancelRequested(false);
-    }
-  };
+  // Resolve `[n]` markers to favicon citation cards. Two formats are supported:
+  // bare markers backed by the report's `sources[]`, and inline `[[n]](url)`
+  // markdown-link citations embedded in the body. Both feed one citation map,
+  // and the body is rewritten to bare markers. Runs before the early returns.
   const { citationMap, bodyText } = useMemo(() => {
     const stripped = stripLeadingH1(report?.output ?? "");
-    const inline = extractMarkdownLinkCitations(stripped);
-    return {
-      citationMap: mergeCitations(
-        buildCitationMapFromSources(report?.sources),
-        inline.citations,
-      ),
-      bodyText: inline.text,
+    const { citations: linkCites, text } =
+      extractMarkdownLinkCitations(stripped);
+    const citationMap = {
+      ...buildCitationMapFromSources(report?.sources),
+      ...linkCites,
     };
+    return { citationMap, bodyText: text };
   }, [report?.output, report?.sources]);
-  if (isLoading)
+
+  if (isLoading) {
     return (
       <div className="flex items-center gap-2 py-12 text-muted-foreground">
-        <Loader2 className="h-4 w-4 animate-spin" />
-        Loading report…
+        <Loader2 className="h-4 w-4 animate-spin" /> Loading report…
       </div>
     );
-  if (error)
+  }
+  if (error) {
     return (
       <div className="flex items-center gap-2 py-12 text-destructive">
-        <AlertCircle className="h-4 w-4" />
-        {(error as Error).message}
+        <AlertCircle className="h-4 w-4" /> {(error as Error).message}
       </div>
     );
+  }
   if (!report) return null;
+
   return (
     <>
       <div className="mb-6 flex items-start justify-between gap-4">
@@ -146,7 +139,7 @@ export function ReportView({ reportId }: { reportId: string }) {
               : report.workflow_slug}{" "}
             · {cap(report.mode)}
           </div>
-          <h1 className="text-2xl font-light leading-tight tracking-tight text-foreground">
+          <h1 className="text-2xl font-light leading-tight tracking-tight text-foreground sm:text-[27px]">
             {report.title}
           </h1>
         </div>
@@ -164,11 +157,10 @@ export function ReportView({ reportId }: { reportId: string }) {
           <button
             onClick={async () => {
               setDownloading(true);
-              setPdfError(null);
               try {
                 await apiDownloadReportPdf(report.id, report.title || "report");
               } catch (e) {
-                setPdfError((e as Error).message);
+                alert((e as Error).message);
               } finally {
                 setDownloading(false);
               }
@@ -185,136 +177,169 @@ export function ReportView({ reportId }: { reportId: string }) {
           </button>
         ) : null}
       </div>
-      {pdfError && <ErrorNote message={pdfError} className="mb-4" />}
+
+      {/* Re-auth needed - the session lapsed while the run continues server-side.
+          Offer sign-in; the run itself is unaffected. */}
       {!isTerminal(report.status) && data?.authExpired && (
-        <div className="mb-4 rounded-xl border border-border bg-card px-4 py-3">
-          <div className="text-xs font-medium text-foreground">
-            Sign in to keep tracking progress
+        <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-border bg-card px-4 py-3">
+          <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="text-xs font-medium text-foreground">
+              Sign in to keep tracking progress
+            </div>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Your session expired. The report keeps running; sign back in to
+              see live updates.
+            </p>
+            <button
+              onClick={() => setShowAuthModal(true)}
+              className="mt-2 inline-flex items-center rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background transition-opacity hover:opacity-90"
+            >
+              Sign in with Valyu to continue
+            </button>
           </div>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Your session expired. The report keeps running; sign back in to see
-            live updates.
-          </p>
-          <button
-            onClick={() => setShowAuthModal(true)}
-            className="mt-2 rounded-lg bg-foreground px-3 py-1.5 text-xs font-medium text-background"
-          >
-            Sign in with Valyu to continue
-          </button>
         </div>
       )}
+
+      {/* Running / queued */}
       {!isTerminal(report.status) && (
-        <div className="mb-4 rounded-xl border border-border bg-card px-4 py-3">
-          <div className="flex items-start justify-between gap-3">
-            <div className="flex min-w-0 items-start gap-2.5">
+        <>
+          {/* A non-transient status-poll error (e.g. credits) - the run may
+              still be alive. Surface it as a non-fatal notice instead of
+              leaving the card spinning silently or rendering terminal failure. */}
+          {data?.syncError && !data?.authExpired && (
+            <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-border bg-card px-4 py-3">
               <AlertCircle className="mt-0.5 h-4 w-4 flex-shrink-0 text-muted-foreground" />
               <div className="min-w-0">
                 <div className="text-xs font-medium text-foreground">
-                  {cancelRequested
-                    ? "Stopping research"
-                    : progress?.total_steps
-                      ? `Researching - step ${progress.current_step ?? 0} of ${progress.total_steps}`
-                      : "Research running"}
+                  Couldn&apos;t refresh status
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  <Clock className="inline h-3 w-3" /> {elapsed ?? "0:00"}{" "}
-                  elapsed
-                  {report.estimated_time
-                    ? ` · est. ${report.estimated_time}`
-                    : ""}
-                </p>
-                {data?.syncError && !data.authExpired && (
-                  <ErrorNote message={data.syncError} className="mt-0.5" />
-                )}
-                {cancelError && (
-                  <ErrorNote message={cancelError} className="mt-0.5" />
-                )}
+                <ErrorNote message={data.syncError} className="mt-0.5" />
               </div>
             </div>
-            <button
-              onClick={handleCancel}
-              disabled={cancelRequested}
-              className="inline-flex flex-shrink-0 items-center gap-1.5 rounded-lg border border-border px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:border-destructive/40 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:border-border disabled:hover:text-muted-foreground"
-            >
-              {cancelRequested ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <XCircle className="h-3.5 w-3.5" />
-              )}
-              {cancelRequested ? "Cancelling…" : "Cancel"}
-            </button>
-          </div>
-          <div className="mt-4">
-            {progress?.total_steps ? (
-              <ProgressBar
-                value={progress.current_step ?? 0}
-                max={progress.total_steps}
-              />
-            ) : (
-              <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
-                <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/40" />
+          )}
+
+          <div className="mb-5 rounded-2xl border border-border bg-card p-5 shadow-[0_1px_2px_0_rgba(0,0,0,0.02)]">
+            <div className="flex items-center gap-3">
+              <span className="relative flex h-9 w-9 flex-shrink-0 items-center justify-center">
+                <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-primary/15" />
+                <span className="relative inline-flex h-9 w-9 items-center justify-center rounded-full bg-primary/10">
+                  <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                </span>
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm font-medium text-foreground">
+                  {progress?.total_steps
+                    ? `Researching · step ${progress.current_step ?? 0} of ${progress.total_steps}`
+                    : "Researching your query…"}
+                </div>
+                <div className="mt-0.5 flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="inline-flex items-center gap-1">
+                    <Clock className="h-3 w-3" /> {elapsed ?? "0:00"} elapsed
+                  </span>
+                  {report.estimated_time && (
+                    <span>· est. {report.estimated_time}</span>
+                  )}
+                </div>
               </div>
-            )}
+            </div>
+
+            <div className="mt-4">
+              {progress?.total_steps ? (
+                <ProgressBar
+                  value={progress.current_step ?? 0}
+                  max={progress.total_steps}
+                />
+              ) : (
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+                  <div className="h-full w-1/3 animate-pulse rounded-full bg-primary/40" />
+                </div>
+              )}
+            </div>
+
+            <p className="mt-3.5 text-xs leading-relaxed text-muted-foreground">
+              Runs in the background - safe to close this and come back.
+              It&apos;s saved in
+              <span className="text-foreground"> Reports</span> and keeps
+              generating until it&apos;s done.
+            </p>
           </div>
-          <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-            Runs in the background - safe to close this and come back. It is
-            saved in Reports until it finishes.
-          </p>
-        </div>
-      )}{" "}
-      {!isTerminal(report.status) && (
-        <ActivityFeed activity={report.activity} running />
+
+          {/* Live activity feed */}
+          <div className="mb-3 flex items-center gap-2">
+            <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-muted-foreground">
+              Activity feed
+            </span>
+            <span className="h-px flex-1 bg-border" />
+          </div>
+          <ActivityFeed activity={report.activity} running />
+        </>
       )}
-      {report.status === "completed" && report.activity?.length ? (
-        <details className="group mb-4 overflow-hidden rounded-2xl border border-border bg-card">
-          <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 hover:bg-muted/30 [&::-webkit-details-marker]:hidden">
-            <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-              Research activity
-            </span>
-            <span className="text-xs text-muted-foreground group-open:hidden">
-              Show
-            </span>
-            <span className="hidden text-xs text-muted-foreground group-open:inline">
-              Hide
-            </span>
-          </summary>
-          <div className="border-t border-border px-5 pb-5 pt-4">
-            <ActivityFeed activity={report.activity} />
+
+      {/* Failed / cancelled */}
+      {(report.status === "failed" || report.status === "cancelled") && (
+        <div className="flex items-start gap-3 rounded-2xl border border-destructive/30 bg-destructive/10 p-6">
+          <AlertCircle className="h-5 w-5 flex-shrink-0 text-destructive" />
+          <div>
+            <div className="text-sm font-medium capitalize text-destructive">
+              {report.status}
+            </div>
+            <div className="mt-1 text-xs text-destructive">
+              {report.error_message || "The research task did not complete."}
+            </div>
           </div>
-        </details>
-      ) : null}
-      {/* Deliverables sit above the report body - they are what most readers
-          came for. */}
-      {report.status === "completed" && report.deliverables?.length ? (
-        <DeliverablesList deliverables={report.deliverables} />
-      ) : null}
-      {report.status === "completed" && report.output ? (
+        </div>
+      )}
+
+      {/* Completed - the files first. They are the thing a finished report is
+          often opened for, and buried under the body they were easy to miss. */}
+      {report.status === "completed" &&
+        report.deliverables &&
+        report.deliverables.length > 0 && (
+          <DeliverablesList deliverables={report.deliverables} />
+        )}
+
+      {/* Research activity (collapsed) then the report */}
+      {report.status === "completed" &&
+        report.activity &&
+        report.activity.length > 0 && (
+          <details className="group mb-4 overflow-hidden rounded-2xl border border-border bg-card">
+            <summary className="flex cursor-pointer list-none items-center justify-between px-5 py-3 text-sm font-medium text-foreground hover:bg-muted/30">
+              <span className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+                Research activity
+              </span>
+              <span className="text-xs text-muted-foreground group-open:hidden">
+                Show
+              </span>
+              <span className="hidden text-xs text-muted-foreground group-open:inline">
+                Hide
+              </span>
+            </summary>
+            <div className="border-t border-border px-5 pb-5 pt-1">
+              <ActivityFeed activity={report.activity} />
+            </div>
+          </details>
+        )}
+
+      {report.status === "completed" && report.output && (
         <div className="rounded-2xl border border-border bg-card p-6 md:p-8">
           <CitationTextRenderer
             text={bodyText}
             citations={citationMap}
-            className="prose prose-sm dark:prose-invert max-w-none"
+            className="prose prose-sm dark:prose-invert max-w-none [--tw-prose-headings:var(--foreground)] [--tw-prose-bold:var(--foreground)]"
           />
-          {report.sources?.length ? (
-            <div className="mt-6 pt-4 text-xs text-muted-foreground">
+          {report.sources && report.sources.length > 0 && (
+            <div className="mt-6 border-t border-border pt-4 text-xs text-muted-foreground">
               {report.sources.length} sources
             </div>
-          ) : null}
-        </div>
-      ) : null}
-      {report.status === "completed" && report.images?.length ? (
-        <ChartGallery images={report.images} />
-      ) : null}
-      {(report.status === "failed" || report.status === "cancelled") && (
-        <div className="rounded-2xl border border-destructive/30 bg-destructive/10 p-6">
-          <div className="text-sm font-medium text-destructive capitalize">
-            {report.status}
-          </div>
-          <div className="mt-1 text-xs text-destructive">
-            {report.error_message || "The research task did not complete."}
-          </div>
+          )}
         </div>
       )}
+
+      {report.status === "completed" &&
+        report.images &&
+        report.images.length > 0 && <ChartGallery images={report.images} />}
+
       <AuthModal open={showAuthModal} onClose={() => setShowAuthModal(false)} />
     </>
   );

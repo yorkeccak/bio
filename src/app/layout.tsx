@@ -10,7 +10,8 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SignOutRedirect } from "@/components/auth/signout-redirect";
 import { PostHogProvider } from "@/components/posthog-provider";
 import { logEnvironmentStatus } from "@/lib/env-validation";
-import { ProviderSelector } from "@/components/providers/provider-selector";
+import { LocalModelStatus } from "@/components/local-model-status";
+import { HeroSplash } from "@/components/hero-splash";
 import { MigrationBanner } from "@/components/migration-banner";
 import { ResearchNotifications } from "@/components/research/research-notifications";
 const geistSans = Geist({
@@ -172,10 +173,11 @@ export default function RootLayout({
               <PostHogProvider>
                 <OllamaProvider>
                   <MissingKeysDialog />
+                  <LocalModelStatus />
                   <MigrationBanner />
-                  <ProviderSelector />
                   <ResearchNotifications />
                   <SignOutRedirect />
+                  <HeroSplash />
                   {children}
                   <Analytics />
                 </OllamaProvider>

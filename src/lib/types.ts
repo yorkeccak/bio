@@ -1,8 +1,5 @@
-import { InferUITools, UIMessage, UIDataTypes } from 'ai';
-import { healthcareTools } from './tools';
+import { UIMessage, UIDataTypes, UITools } from "ai";
 
-// Infer the types from our biomedical tools
-export type BiomedUITools = InferUITools<typeof healthcareTools>;
-
-// Create a custom UIMessage type with our tools
-export type BiomedUIMessage = UIMessage<never, UIDataTypes, BiomedUITools>;
+// Generic UIMessage type for the app. The previous tool-based chat agent has
+// been removed, so this no longer infers tool types from a tool set.
+export type BiomedUIMessage = UIMessage<never, UIDataTypes, UITools>;

@@ -35,70 +35,13 @@ export function getLocalDb() {
 
 function initializeDatabase(sqlite: Database.Database) {
   // Create tables if they don't exist
+  // Note: All users must authenticate with Valyu OAuth. No rate limiting - credits handled by Valyu Platform.
   sqlite.exec(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       email TEXT NOT NULL UNIQUE,
-      subscription_tier TEXT NOT NULL DEFAULT 'unlimited',
-      subscription_status TEXT NOT NULL DEFAULT 'active',
-      polar_customer_id TEXT,
-      subscription_id TEXT,
       created_at INTEGER NOT NULL DEFAULT (unixepoch())
     );
-
-    CREATE TABLE IF NOT EXISTS user_rate_limits (
-      user_id TEXT PRIMARY KEY NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      usage_count INTEGER NOT NULL DEFAULT 0,
-      reset_date TEXT NOT NULL,
-      last_request_at INTEGER,
-      tier TEXT NOT NULL DEFAULT 'unlimited'
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_sessions (
-      id TEXT PRIMARY KEY,
-      user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-      title TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      last_message_at INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS chat_messages (
-      id TEXT PRIMARY KEY,
-      session_id TEXT NOT NULL REFERENCES chat_sessions(id) ON DELETE CASCADE,
-      role TEXT NOT NULL,
-      content TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      processing_time_ms INTEGER
-    );
-
-    CREATE TABLE IF NOT EXISTS charts (
-      id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-      anonymous_id TEXT,
-      session_id TEXT NOT NULL,
-      chart_data TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-
-    CREATE TABLE IF NOT EXISTS csvs (
-      id TEXT PRIMARY KEY,
-      user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
-      anonymous_id TEXT,
-      session_id TEXT NOT NULL,
-      title TEXT NOT NULL,
-      description TEXT,
-      headers TEXT NOT NULL,
-      rows TEXT NOT NULL,
-      created_at INTEGER NOT NULL DEFAULT (unixepoch()),
-      updated_at INTEGER NOT NULL DEFAULT (unixepoch())
-    );
-
-    CREATE INDEX IF NOT EXISTS idx_chat_sessions_user_id ON chat_sessions(user_id);
-    CREATE INDEX IF NOT EXISTS idx_chat_messages_session_id ON chat_messages(session_id);
-    CREATE INDEX IF NOT EXISTS idx_charts_session_id ON charts(session_id);
-    CREATE INDEX IF NOT EXISTS idx_csvs_session_id ON csvs(session_id);
   `);
 
   // Insert dev user if it doesn't exist
@@ -109,19 +52,10 @@ function initializeDatabase(sqlite: Database.Database) {
   if (!existingUser) {
     sqlite
       .prepare(
-        `INSERT INTO users (id, email, subscription_tier, subscription_status)
-         VALUES (?, ?, 'unlimited', 'active')`
+        `INSERT INTO users (id, email)
+         VALUES (?, ?)`,
       )
       .run(DEV_USER_ID, DEV_USER_EMAIL);
-
-    // Initialize rate limits for dev user
-    const today = new Date().toISOString().split("T")[0];
-    sqlite
-      .prepare(
-        `INSERT INTO user_rate_limits (user_id, usage_count, reset_date, tier)
-         VALUES (?, 0, ?, 'unlimited')`
-      )
-      .run(DEV_USER_ID, today);
   }
 }
 

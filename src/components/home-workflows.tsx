@@ -85,14 +85,24 @@ export function HomeWorkflows() {
               onClick={() => setOpenExampleDomain(ex.domainId)}
               className="group relative overflow-hidden text-left p-3 rounded-xl border border-border bg-muted/30 hover:bg-muted/60 hover:border-muted-foreground/30 transition-colors"
             >
-              {/* Faint editorial motif, strongest in the top portion behind the icon */}
+              {/* Faint editorial motif, strongest in the top portion behind the icon.
+                  Light and dark renditions are both mounted and toggled with `dark:`
+                  so the right one paints on the first frame. */}
               <Image
                 src={`/workflows/${ex.domainId}-bg.webp`}
                 alt=""
                 aria-hidden="true"
                 fill
                 sizes="(max-width: 640px) 50vw, 25vw"
-                className="absolute inset-0 object-cover object-center opacity-[0.7] dark:opacity-40 transition-opacity duration-300 group-hover:opacity-90 dark:group-hover:opacity-55"
+                className="absolute inset-0 object-cover object-center opacity-[0.55] transition-opacity duration-300 group-hover:opacity-75 dark:hidden"
+              />
+              <Image
+                src={`/workflows/${ex.domainId}-bg-dark.webp`}
+                alt=""
+                aria-hidden="true"
+                fill
+                sizes="(max-width: 640px) 50vw, 25vw"
+                className="absolute inset-0 hidden object-cover object-center opacity-40 transition-opacity duration-300 group-hover:opacity-55 dark:block"
               />
               {/* Theme-aware scrim so lower text stays readable while the motif shows through */}
               <div className="absolute inset-0 bg-gradient-to-t from-card via-card/45 to-card/10 dark:from-card dark:via-card/55 dark:to-card/20" />
