@@ -2,10 +2,12 @@ import { redirect } from "next/navigation";
 import * as db from "@/lib/db";
 
 /**
- * Reports are per-user, so everything under /reports requires a session.
+ * Reports are per-user, so everything in this route group requires a session.
  * In self-hosted mode `db.getUser()` returns the local dev user, so the gate
  * only bites in the hosted Valyu mode. The matching API routes enforce this
  * independently — this layout just keeps signed-out visitors off the page.
+ * Seeded example reports (/reports/examples) sit outside the group on purpose:
+ * they are static and public.
  */
 export default async function ReportsLayout({
   children,

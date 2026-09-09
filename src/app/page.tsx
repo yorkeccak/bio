@@ -14,7 +14,7 @@ import { useAuthStore } from '@/lib/stores/use-auth-store';
 import { Sidebar } from '@/components/sidebar';
 import { EnterpriseBanner } from '@/components/enterprise/enterprise-banner';
 import { ResearchConsole } from '@/components/research/research-console';
-import { WorkflowShowcase } from '@/components/research/workflow-showcase';
+import { HomeWorkflows } from '@/components/home-workflows';
 import { BioBackdrop } from '@/components/research/bio-backdrop';
 
 /**
@@ -232,8 +232,8 @@ function HomeContent() {
             />
           </div>
 
-          <div className="mt-6 w-full">
-            <WorkflowShowcase />
+          <div className="w-full max-w-4xl">
+            <HomeWorkflows />
           </div>
 
           {/* Data sources shown as a light watermark strip, like the finance homepage. */}
