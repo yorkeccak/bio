@@ -15,6 +15,7 @@ import {
   Plus,
   ExternalLink,
   Microscope,
+  Sparkles,
 } from "lucide-react";
 import { DOMAINS, MODES, LIFE_SCIENCES_VERTICAL } from "@/lib/domains";
 import { iconForDomain } from "@/lib/domain-icons";
@@ -23,6 +24,8 @@ import { apiListWorkflows } from "@/lib/workflow-client";
 import { apiCreateReport } from "@/lib/report-client";
 import { ErrorNote } from "./error-note";
 import { requestNotifyPermission } from "./report-notify";
+import { getExample } from "@/lib/example-reports/registry";
+import { ExampleReportDrawer } from "./example-report-drawer";
 
 const LS_KEY = "reports.lastDomain";
 
@@ -94,6 +97,7 @@ export function WorkflowBrowser({
   const [selected, setSelected] = useState<WorkflowDTO | null>(null);
   const [pendingSlug, setPendingSlug] = useState<string | null>(null);
   const [query, setQuery] = useState("");
+  const [openExampleDomain, setOpenExampleDomain] = useState<string | null>(null);
 
   // Deep link: /reports?workflow=<slug> opens that run panel once the catalog
   // loads; /reports?domain=<id> picks a lens. Otherwise restore the last lens.
@@ -160,6 +164,8 @@ export function WorkflowBrowser({
     }
   }, [pendingSlug, workflows]);
 
+  const example = domain !== "all" ? getExample(domain) : null;
+
   return (
     <div>
       {/* Lens filter - segmented control */}
@@ -212,6 +218,33 @@ export function WorkflowBrowser({
               className="w-full rounded-xl border border-border bg-card py-3 pl-11 pr-4 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus:border-foreground/30"
             />
           </div>
+
+          {/* Hero: seeded example report for this lens */}
+          {example && !query && (
+            <button
+              onClick={() => setOpenExampleDomain(domain)}
+              className="w-full text-left mb-3 p-4 rounded-2xl border border-border bg-card hover:border-foreground/20 transition-colors flex items-center gap-4"
+            >
+              <div className="h-10 w-10 rounded-xl bg-muted border border-border flex items-center justify-center flex-shrink-0">
+                <Sparkles className="h-5 w-5 text-muted-foreground" strokeWidth={1.75} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2">
+                  <span className="text-[11px] font-semibold tracking-wide text-muted-foreground uppercase">
+                    Example report
+                  </span>
+                </div>
+                <div className="text-sm font-semibold text-foreground truncate mt-0.5">
+                  {example.title}
+                </div>
+                <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                  See a finished {example.subject} report before you run your own
+                  {example.sources_count > 0 ? ` · ${example.sources_count} sources` : ""}
+                </div>
+              </div>
+              <ArrowRight className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+            </button>
+          )}
 
           {isLoading ? (
             <div className="flex items-center gap-2 py-10 text-sm text-muted-foreground">
@@ -298,6 +331,15 @@ export function WorkflowBrowser({
           )}
         </>
       )}
+
+      <ExampleReportDrawer
+        domainId={openExampleDomain}
+        onClose={() => setOpenExampleDomain(null)}
+        onRun={(slug) => {
+          setOpenExampleDomain(null);
+          setPendingSlug(slug);
+        }}
+      />
     </div>
   );
 }

@@ -8,6 +8,16 @@
 /** The only Valyu vertical this app surfaces. */
 export const LIFE_SCIENCES_VERTICAL = "life-sciences";
 
+/** The lenses we surface (every DOMAINS entry except the synthetic "all"). */
+export const LIFE_SCIENCES_LENSES = [
+  "pipeline",
+  "clinical",
+  "regulatory",
+  "bd",
+] as const;
+
+export type LifeSciencesLens = (typeof LIFE_SCIENCES_LENSES)[number];
+
 export interface Domain {
   id: string; // "all" or a lens id
   label: string;
